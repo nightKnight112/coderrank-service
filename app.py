@@ -11,6 +11,7 @@ def execute_java_code(code):
         f.write(code)
     
     output = subprocess.run(["./script.sh"])
+    print(output)
     return output
 
     # try:
@@ -37,7 +38,7 @@ def execute_java_code(code):
 def execute():
     java_code = request.data.decode('utf-8')
     output = execute_java_code(java_code)
-    return jsonify({'output': output})
+    return jsonify(1)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
