@@ -10,9 +10,10 @@ def execute_java_code(code):
     with open("Solution.java", "w") as f:
         f.write(code)
     
-    output = subprocess.run(["./script.sh"])
-    print(output)
-    return output
+    #output = os.popen("./script.sh").read()
+    output = subprocess.run(["./script.sh"], capture_output=True, text=True)
+    print(output.stdout)
+    return output.stdout
 
     # try:
     #     subprocess.run(["javac", "Solution.java"], check=True)
@@ -38,7 +39,7 @@ def execute_java_code(code):
 def execute():
     java_code = request.data.decode('utf-8')
     output = execute_java_code(java_code)
-    return jsonify(1)
+    return jsonify(output)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
