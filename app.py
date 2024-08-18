@@ -14,31 +14,24 @@ def execute_java_code(code):
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
     return output.stdout
-
-    # try:
-    #     subprocess.run(["javac", "Solution.java"], check=True)
-    #     output = subprocess.check_output(["java", "Solution"], text=True)
-    #     return output
-    # except subprocess.CalledProcessError as e:
-    #     return str(e)
-    # finally:
-    #     # Clean up temporary files
-    #     os.remove("Solution.java")
-    #     # try:
-    #     #     os.remove("Solution.class")
-    #     # except FileNotFoundError:
-    #     #     pass
-
-    # with open('/shared/Solution.java', 'w') as file:
-    #     file.write(code)
     
 
-
+def execute_query(query):
+    with open("input.sql", "w") as f:
+        f.write(query)
+    
+    output = subprocess.run(["./script.sh"], capture_output=True, text=True)
+    print(output.stdout)
+    return output.stdout
 
 @app.route('/execute', methods=['POST'])
 def execute():
-    java_code = request.data.decode('utf-8')
-    output = execute_java_code(java_code)
+    # java_code = request.data.decode('utf-8')
+    # output = execute_java_code(java_code)
+    # return jsonify(output)
+
+    query = request.data.decode("utf-8")
+    output = execute_query(query)
     return jsonify(output)
 
 if __name__ == "__main__":
