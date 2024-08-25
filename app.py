@@ -6,7 +6,7 @@ app = Flask(__name__)
 CORS(app)
 
 def execute_java_code(code):
-    with open("/codes/Solution.java", "w") as f:
+    with open("./codes/Solution.java", "w") as f:
         f.write(code)
     
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
@@ -25,7 +25,7 @@ def execute_query(query):
 @app.route('/execute', methods=['POST'])
 def execute():
     java_code = request.data.decode('utf-8')
-    output = execute_java_code(java_code)
+    output = execute_java_code(java_code).strip()
     return jsonify(output)
 
     # query = request.data.decode("utf-8")
