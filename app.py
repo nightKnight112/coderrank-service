@@ -6,11 +6,9 @@ app = Flask(__name__)
 CORS(app)
 
 def execute_java_code(code):
-    """Executes Java code using subprocess and returns the output."""
-    with open("Solution.java", "w") as f:
+    with open("/codes/Solution.java", "w") as f:
         f.write(code)
     
-    #output = os.popen("./script.sh").read()
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
     return output.stdout
@@ -26,13 +24,13 @@ def execute_query(query):
 
 @app.route('/execute', methods=['POST'])
 def execute():
-    # java_code = request.data.decode('utf-8')
-    # output = execute_java_code(java_code)
-    # return jsonify(output)
-
-    query = request.data.decode("utf-8")
-    output = execute_query(query)
+    java_code = request.data.decode('utf-8')
+    output = execute_java_code(java_code)
     return jsonify(output)
+
+    # query = request.data.decode("utf-8")
+    # output = execute_query(query)
+    # return jsonify(output)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
