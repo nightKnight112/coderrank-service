@@ -5,10 +5,13 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-def execute_java_code(code):
+def execute_java_code(code, input):
     with open("./codes/Solution.java", "w") as f:
         f.write(code)
     
+    with open("./codes/input.txt", "w") as f:
+        f.write(input)
+
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
     return output.stdout
@@ -20,12 +23,18 @@ def execute_query(query):
     
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
-    return output.stdout
+    if(len(output.stderr) > len(output.stdout)):
+        return output.stderr
+    else:
+        return output.stdout
 
 @app.route('/execute', methods=['POST'])
 def execute():
-    java_code = request.data.decode('utf-8')
-    output = execute_java_code(java_code).strip()
+    data = request.get_json()
+    code = data["code"]
+    input = data["input"]
+    # java_code = request.data.decode('utf-8')
+    output = execute_java_code(code, input).strip()
     return jsonify(output)
 
     # query = request.data.decode("utf-8")
