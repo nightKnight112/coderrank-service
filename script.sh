@@ -8,6 +8,6 @@ command="echo password | sudo -S docker cp /home/anurag/coderrank-query-executio
 
 # command="echo password | sudo -S docker cp /home/anurag/input.sql pg-container:/home/ > /dev/null 2>/dev/null && echo password | sudo -S docker exec -i pg-container psql -U postgres -d postgres < input.sql > /home/anurag/output.txt 2>/dev/null && cat output.txt"
 
-output=`sshpass -p password ssh -tt -o StrictHostKeyChecking=no -t anurag@ip ${command}`
+output=`sshpass -p password ssh -o StrictHostKeyChecking=no -t anurag@ip ${command}`
 
 echo $output

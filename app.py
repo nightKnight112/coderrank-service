@@ -14,7 +14,11 @@ def execute_java_code(code, input):
 
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
-    return output.stdout
+    print(output.stderr)
+    if(len(output.stderr) > len(output.stdout)):
+        return output.stderr
+    else:
+        return output.stdout
     
 
 def execute_query(query):
@@ -23,10 +27,6 @@ def execute_query(query):
     
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
     print(output.stdout)
-    if(len(output.stderr) > len(output.stdout)):
-        return output.stderr
-    else:
-        return output.stdout
 
 @app.route('/execute', methods=['POST'])
 def execute():
