@@ -13,8 +13,8 @@ def execute_java_code(code, input):
         f.write(input)
 
     output = subprocess.run(["./script.sh"], capture_output=True, text=True)
-    print(output.stdout)
-    print(output.stderr)
+    print("Output: ",output.stdout)
+    print("Error: ", output.stderr)
     if(len(output.stderr) > len(output.stdout)):
         return output.stderr
     else:
