@@ -57,7 +57,7 @@ def execute():
         
         output = subprocess.run(["./java-execute.sh"], capture_output=True, text=True)
     else:
-        with open("./codes/app.py", "w") as f:
+        with open("./codes/solution.py", "w") as f:
             f.write(code)
         
         output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
