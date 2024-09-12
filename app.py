@@ -124,7 +124,7 @@ def execute_code():
 
 
 #api to fetch all supported languages, language_id param to be used as peimary key for testcases
-@app.route('/get_language_options', methods=["GET"])
+@app.route('/get-language-options', methods=["GET"])
 def get_language_options():
     return jsonify(language_options), 200
 
