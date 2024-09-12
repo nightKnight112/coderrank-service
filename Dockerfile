@@ -10,7 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 RUN mkdir codes
 
-RUN chmod 777 ./script.sh
+RUN chmod 777 ./java-execute.sh
+
+RUN chmod 777 ./python-execute.sh
 
 CMD [ "python", "./app.py" ]
 
