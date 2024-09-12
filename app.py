@@ -1,9 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import subprocess
-import os
-import docker
-import subprocess
 app = Flask(__name__)
 CORS(app)
 
@@ -44,18 +41,36 @@ def execute_query(query):
 @app.route('/execute', methods=['POST'])
 def execute():
     data = request.get_json()
+    language_name = data["language_name"]
     code = data["code"]
     input = data["input"]
-    # java_code = request.data.decode('utf-8')
-    output = execute_java_code(code, input).strip()
-    return jsonify(output)
 
-    # query = request.data.decode("utf-8")
-    # output = execute_query(query)
-    # return jsonify(output)
+    output = ""
+    response = ""
+    
+    with open("./codes/input.txt", "w") as f:
+        f.write(input)
 
-#Logic for calling through docker
-client = docker.from_env()
+    if language_name == "Java":
+        with open("./codes/Solution.java", "w") as f:
+            f.write(code)
+        
+        output = subprocess.run(["./java-execute.sh"], capture_output=True, text=True)
+    else:
+        with open("./codes/app.py", "w") as f:
+            f.write(code)
+        
+        output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
+    
+    print("Output: ",output.stdout)
+    print("Error: ", output.stderr)
+    if(len(output.stderr) > len(output.stdout)):
+        response = output.stderr
+    else:
+        response = output.stdout
+    
+    response = response.strip()
+    return jsonify(response)
 
 @app.route('/execute_code_docker', methods=['POST'])
 def execute_code():

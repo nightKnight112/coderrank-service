@@ -1,4 +1,4 @@
-# coderrank-query-execution-service
+# coderrank-service
 
 Build:
 
