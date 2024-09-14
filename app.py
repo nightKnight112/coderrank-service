@@ -39,7 +39,14 @@ def execute():
         
         output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
     
-    response = output.stdout.strip()
+    print("Output: ",output.stdout)
+    print("Error: ", output.stderr)
+    if(len(output.stderr) > len(output.stdout)):
+        response = output.stderr
+    else:
+        response = output.stdout
+    
+    response = output.strip()
     
     return jsonify(response)
 
