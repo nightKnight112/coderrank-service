@@ -46,7 +46,7 @@ def execute():
     else:
         response = output.stdout
     
-    response = output.strip()
+    response = response.strip()
     
     return jsonify(response)
 
