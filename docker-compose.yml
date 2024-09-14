@@ -1,7 +1,12 @@
 version: '2'
 services:
   coderrank-ui:
-  build: ./coderrank-ui
-  image: coderrank-ui
-  ports:
-    - "3000:3000"
+    build: ./coderrank-ui
+    image: coderrank-ui
+    ports:
+      - "3000:3000"
+  coderrank-service:
+    build: ./coderrank-service
+    image: coderrank-service
+    ports:
+      - "5000:5000"
