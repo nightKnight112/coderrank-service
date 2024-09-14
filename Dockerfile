@@ -8,7 +8,11 @@ RUN apt update && apt install -y sshpass
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN chmod 777 ./script.sh
+RUN mkdir /home/codes
+
+RUN chmod 777 ./java-execute.sh
+
+RUN chmod 777 ./python-execute.sh
 
 CMD [ "python", "./app.py" ]
 
