@@ -1,13 +1,14 @@
-version: '2'
 services:
   coderrank-ui:
     build: ./coderrank-ui
     image: coderrank-ui
+    container_name: coderrank-ui
     ports:
       - "3000:3000"
   coderrank-service:
     build: ./coderrank-service
     image: coderrank-service
+    container_name: coderrank-service
     volumes:
       - "/home/anurag/codes:/home/codes"
     ports:
@@ -15,3 +16,4 @@ services:
   code-exec-container:
     build: ./code-exec-container
     image: code-exec-container
+    container_name: code-exec-container
