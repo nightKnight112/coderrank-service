@@ -25,28 +25,22 @@ def execute():
     output = ""
     response = ""
     
-    with open("./codes/input.txt", "w") as f:
+    with open("/home/codes/input.txt", "w") as f:
         f.write(input)
 
     if language_name == "Java":
-        with open("./codes/Solution.java", "w") as f:
+        with open("/home/codes/Solution.java", "w") as f:
             f.write(code)
         
         output = subprocess.run(["./java-execute.sh"], capture_output=True, text=True)
     else:
-        with open("./codes/solution.py", "w") as f:
+        with open("/home/codes/solution.py", "w") as f:
             f.write(code)
         
         output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
     
-    print("Output: ",output.stdout)
-    print("Error: ", output.stderr)
-    if(len(output.stderr) > len(output.stdout)):
-        response = output.stderr
-    else:
-        response = output.stdout
+    response = output.stdout.strip()
     
-    response = response.strip()
     return jsonify(response)
 
 #api to fetch all supported languages, language_id param to be used as peimary key for testcases
