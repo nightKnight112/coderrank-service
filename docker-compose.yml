@@ -8,5 +8,7 @@ services:
   coderrank-service:
     build: ./coderrank-service
     image: coderrank-service
+    volumes:
+      - "/home/anurag/codes:/app/codes"
     ports:
       - "5000:5000"
