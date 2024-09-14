@@ -12,3 +12,6 @@ services:
       - "/home/anurag/codes:/home/codes"
     ports:
       - "5000:5000"
+  code-exec-container:
+    build: ./code-exec-container
+    image: code-exec-container

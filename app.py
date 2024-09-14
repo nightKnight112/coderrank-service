@@ -50,7 +50,7 @@ def execute():
     
     return jsonify(response)
 
-#api to fetch all supported languages, language_id param to be used as peimary key for testcases
+#api to fetch all supported languages, language_id param to be used as primary key for testcases
 @app.route('/get-language-options', methods=["GET"])
 def get_language_options():
     return jsonify(language_options), 200
