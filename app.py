@@ -2,19 +2,37 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import subprocess
 import docker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from database_utils.models import LanguageInfo, UserMetadata, UserMaster
+import uuid
+
 app = Flask(__name__)
 CORS(app)
 
-language_options = [
-    {
-        "language_name": "Java",
-        "language_id": 1
-    },
-    {
-        "language_name": "Python",
-        "language_id": 2
-    }
-]
+#Db configuration
+DATABASE_URL = "postgresql://postgres:password@localhost:5432/coderrank_db"
+db_engine = create_engine(DATABASE_URL)
+db_session = sessionmaker(bind=db_engine)
+db_session_ac = db_session() #dbSession object
+
+
+#api to fetch all supported languages, language_id param to be used as primary key for testcases
+@app.route('/get-language-options', methods=["GET"])
+def get_language_options():
+    try:
+        languages = db_session_ac.query(LanguageInfo).all()
+        return_body = []
+        for items in languages:
+            temp = {
+                "language_name" : items.language_name,
+                "language_uuid" : items.language_uuid
+            }
+            return_body.append(temp)
+        return jsonify(return_body), 200
+    except Exception as e:
+        return jsonify({'error' : e}), 400
+
 
 @app.route('/execute', methods=['POST'])
 def execute():
@@ -51,13 +69,7 @@ def execute():
     
     return jsonify(response)
 
-#api to fetch all supported languages, language_id param to be used as primary key for testcases
-@app.route('/get-language-options', methods=["GET"])
-def get_language_options():
-    return jsonify(language_options), 200
-
-
-
+# code execution through docker exec
 @app.route('/execute_code_docker', methods=['POST'])
 def execute_code():
     client = docker.from_env()
@@ -109,12 +121,6 @@ def execute_code():
             # Compile the Java file inside the container and pass the input
             exec_cmd = f'javac Solution.java && java Solution < input.txt'
             result = container.exec_run(['sh', '-c', exec_cmd], stdin=True, stdout=True, stderr=True)
-            # if compile_result.exit_code != 0:
-            #     return jsonify({"error": compile_result.output.decode('utf-8')}), 500
-
-            # # Run the compiled Java program with input piped directly
-            # command = f'echo "{user_input}" | java Main'
-            # result = container.exec_run(['sh', '-c', command], stdin=True, tty=True)
 
             return jsonify({"output": result.output.decode('utf-8')}), 200
 
@@ -123,6 +129,66 @@ def execute_code():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+#user-end apis
+@app.route('/login-user', methods=['POST'])
+def user_login():
+    data = request.json
+    user_alias = data["user_alias"] #username == actual name && user_alias == username given by user, eg:Dedsec Potter, CoderMaster69
+    password = data["password"]
+    try:
+        users = db_session_ac.query(UserMetadata).filter_by(user_alias=user_alias,user_password=password).all()
+        user_id = users[0].user_id
+        user_master_data = db_session_ac.query(UserMaster).filter_by(user_id=user_id).all()
+        user_uuid = user_master_data[0].user_uuid
+        if(len(users) == 1):
+            return jsonify({'message': 'Logged in successfully', 'user_id' : user_uuid}), 200
+        else:
+            return jsonify({'message': 'Username or password is incorrect'}), 400
+    except Exception as e:
+        return jsonify({'message': 'Failed to login user'}), 500
+
+@app.route('/register-user', methods=['POST'])
+def user_registration():
+    data = request.json
+    user_uuid = uuid.uuid4()
+    name = data['full_name']
+    user_alias = data['user_alias']
+    password = data['user_password']
+    phone = data['phone_no']
+    email = data['email']
+
+    allUsers = db_session_ac.query(UserMaster).all()
+    last_given_userid = allUsers[len(allUsers)-1].user_id
+    last_given_userid += 1
+
+    new_user_master = UserMaster(
+        user_id=last_given_userid,
+        user_uuid=user_uuid
+    )
+
+    new_user_metadata = UserMetadata(
+        user_id=last_given_userid,
+        user_name=name,
+        user_alias=user_alias,
+        user_password=password,
+        user_phone_no=phone,
+        user_email=email,
+        no_of_times_user_login=0,
+        no_of_problems_solved=0,
+        is_admin=False
+    )
+
+    try:
+        db_session_ac.add(new_user_master)
+        db_session_ac.commit()
+        db_session_ac.add(new_user_metadata)
+        db_session_ac.commit()
+        return jsonify({'message': 'user registered successfully'}), 200
+    except Exception as e:
+        db_session_ac.rollback()
+        return jsonify({'error': e}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
