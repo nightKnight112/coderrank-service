@@ -143,8 +143,9 @@ def user_login():
         user_id = users[0].user_id
         user_master_data = db_session_ac.query(UserMaster).filter_by(user_id=user_id).all()
         user_uuid = user_master_data[0].user_uuid
+        is_user_admin = user_master_data[0].user_metadata.is_admin
         if(len(users) == 1):
-            return jsonify({'message': 'Logged in successfully', 'user_id' : user_uuid}), 200
+            return jsonify({'message': 'Logged in successfully', 'user_id' : user_uuid, 'admin_user' : is_user_admin}), 200
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
     except Exception as e:
