@@ -25,7 +25,7 @@ class UserMaster(Base):
     user_id = Column(Integer, primary_key=True)
     user_uuid = Column(String)
 
-    user_metadata = relationship("UserMetadata", back_populates="user_master", uselist=False)
+    user_metadata = relationship("UserMetadata", back_populates="user_master", uselist=False, cascade="all, delete")
 
 class UserDidProblem(Base):
     __tablename__ = "user_did_problem"

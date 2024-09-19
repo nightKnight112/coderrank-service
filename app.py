@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
 from database_utils.models import LanguageInfo, UserMetadata, UserMaster
 import uuid
+from database_utils.dbUtils import user_update_fields
 
 app = Flask(__name__)
 CORS(app)
@@ -183,10 +184,10 @@ def user_registration():
         is_admin=False
     )
 
+    new_user_master.user_metadata = new_user_metadata
+
     try:
         db_session_ac.add(new_user_master)
-        db_session_ac.commit()
-        db_session_ac.add(new_user_metadata)
         db_session_ac.commit()
         return jsonify({'message': 'user registered successfully'}), 200
     except Exception as e:
@@ -216,8 +217,62 @@ def get_user_details(user_alias):
                 }
                 resBody.append(temp)
 
-        print(resBody)
+        # print(resBody)
         return jsonify(resBody), 200
+
+@app.route('/delete-user', methods=['DELETE'])
+def delete_user():
+    data = request.json
+    user_to_be_deleted = data['user_to_be_deleted']
+    requester_id = data['requester_user_id']
+
+    requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_deleted).first()
+
+    if(requester_id == user_to_be_deleted): #user self-delete logic
+        try:
+            db_session_ac.delete(requestedUser)
+            db_session_ac.commit()
+            return jsonify({'message': 'user deleted successfully'}), 200
+        except Exception as e:
+            return jsonify({'message': 'cannot delete user, user does not exist'}), 400
+    
+    else: #admin deletes user logic
+        requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+        if(requesterUser and requesterUser.user_metadata.is_admin):
+            db_session_ac.delete(requestedUser)
+            db_session_ac.commit()
+            return jsonify({'message': 'user deleted successfully'}), 200
+        else:
+            return jsonify({'message': 'cannot delete user, user unauthorized or does not exist'}), 400
+
+@app.route('/edit-user', methods=['PUT'])
+def edit_user():
+    data = request.json
+    user_to_be_edited = data['user_to_be_edited']
+    requester_id = data['requester_user_id']
+    edit_metadata = data['edit_metadata']
+
+    requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_edited).first()
+    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+
+    if(user_to_be_edited == requester_id):
+        try:
+            for field, model_attr in user_update_fields.items():
+                if field in edit_metadata and edit_metadata.get(field) is not None:
+                    setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+            db_session_ac.commit()
+            return jsonify({'message': 'user details edited successfully'}), 200
+        except Exception as e:
+            return jsonify({'error': 'user details cannot be edited'}), 400
+    else:
+        if(requesterUser and requesterUser.user_metadata.is_admin):
+            for field, model_attr in user_update_fields.items():
+                if field in edit_metadata and edit_metadata.get(field) is not None:
+                    setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+            db_session_ac.commit()
+            return jsonify({'message': 'user details edited successfully'}), 200
+        else:
+            return jsonify({'message': 'cannot modify user'}), 400
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
