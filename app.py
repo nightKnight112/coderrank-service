@@ -3,7 +3,7 @@ from flask_cors import CORS
 import subprocess
 import docker
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, joinedload
 from database_utils.models import LanguageInfo, UserMetadata, UserMaster
 import uuid
 
@@ -160,8 +160,11 @@ def user_registration():
     email = data['email']
 
     allUsers = db_session_ac.query(UserMaster).all()
-    last_given_userid = allUsers[len(allUsers)-1].user_id
-    last_given_userid += 1
+    if(len(allUsers) > 0):
+        last_given_userid = allUsers[len(allUsers)-1].user_id
+        last_given_userid += 1
+    else:
+        last_given_userid = 1
 
     new_user_master = UserMaster(
         user_id=last_given_userid,
@@ -189,6 +192,32 @@ def user_registration():
     except Exception as e:
         db_session_ac.rollback()
         return jsonify({'error': e}), 500
+    
+@app.route('/user-details/', defaults={'user_alias': None}, methods=['GET'])
+@app.route('/user-details/<string:user_alias>', methods=['GET'])
+def get_user_details(user_alias):
+
+    if user_alias is None:
+        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
+        resBody = []
+        for users in userDetails:
+            if(users.user_metadata.is_admin == False): #admin user cannot view other admin user data
+                temp = {
+                    'user_id' : users.user_uuid,
+                    'user_metadata' : {
+                        "full_name" : users.user_metadata.user_name,
+                        "user_alias" : users.user_metadata.user_alias,
+                        "user_password" : users.user_metadata.user_password,
+                        "phone_no" : users.user_metadata.user_phone_no,
+                        "email" : users.user_metadata.user_email,
+                        "user_login_count" : users.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : users.user_metadata.no_of_problems_solved
+                    }
+                }
+                resBody.append(temp)
+
+        print(resBody)
+        return jsonify(resBody), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)

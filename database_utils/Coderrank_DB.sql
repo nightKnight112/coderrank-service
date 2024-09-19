@@ -1,63 +1,112 @@
-CREATE TABLE "language_info" (
-  "language_id" integer PRIMARY KEY NOT NULL,
-  "language_uuid" varchar,
-  "language_name" varchar
+CREATE DATABASE coderrank_db
+    WITH
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'English_India.1252'
+    LC_CTYPE = 'English_India.1252'
+    LOCALE_PROVIDER = 'libc'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1
+    IS_TEMPLATE = False;
+
+COMMENT ON DATABASE coderrank_db
+    IS 'Coderrank DB';
+
+DROP TABLE IF EXISTS language_info CASCADE;
+DROP TABLE IF EXISTS problem_statement_master CASCADE;
+DROP TABLE IF EXISTS problem_statement_metadata CASCADE;
+DROP TABLE IF EXISTS problem_statement_test_cases CASCADE;
+DROP TABLE IF EXISTS user_master CASCADE;
+DROP TABLE IF EXISTS user_metadata CASCADE;
+DROP TABLE IF EXISTS user_did_problem CASCADE;
+DROP TABLE IF EXISTS test_cases_in_language CASCADE;
+
+-- Table: language_info
+CREATE TABLE language_info (
+  language_id INTEGER PRIMARY KEY NOT NULL,
+  language_uuid VARCHAR,
+  language_name VARCHAR
 );
 
-CREATE TABLE "problem_statement_master" (
-  "problem_statement_id" integer PRIMARY KEY NOT NULL,
-  "problem_statement_uuid" varchar
+-- Table: problem_statement_master
+CREATE TABLE problem_statement_master (
+  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  problem_statement_uuid VARCHAR
 );
 
-CREATE TABLE "problem_statement_metadata" (
-  "problem_statement_id" integer PRIMARY KEY NOT NULL,
-  "problem_statement_body" longtext,
-  "sample_input" varchar,
-  "sample_output" varchar,
-  "problem_duration" integer,
-  "problem_hint" text,
-  "no_of_test_cases" integer
+-- Table: problem_statement_metadata
+CREATE TABLE problem_statement_metadata (
+  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  problem_statement_body TEXT,
+  sample_input VARCHAR,
+  sample_output VARCHAR,
+  problem_duration INTEGER,
+  problem_hint TEXT,
+  no_of_test_cases INTEGER,
+  CONSTRAINT fk_problem_statement_metadata
+    FOREIGN KEY (problem_statement_id)
+    REFERENCES problem_statement_master(problem_statement_id)
 );
 
-CREATE TABLE "problem_statement_test_cases" (
-  "problem_statement_id" integer,
-  "language_id" integer,
-  "expected_input" varchar,
-  "expected_output" varchar,
-  "test_case_weightage" integer,
-  "is_hidden" boolean
+-- Table: problem_statement_test_cases
+CREATE TABLE problem_statement_test_cases (
+  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  language_id INTEGER,
+  expected_input VARCHAR,
+  expected_output VARCHAR,
+  test_case_weightage INTEGER,
+  is_hidden BOOLEAN,
+  CONSTRAINT fk_problem_statement_test_cases_problem
+    FOREIGN KEY (problem_statement_id)
+    REFERENCES problem_statement_master(problem_statement_id),
+  CONSTRAINT fk_problem_statement_test_cases_language
+    FOREIGN KEY (language_id)
+    REFERENCES language_info(language_id)
 );
 
-CREATE TABLE "user_master" (
-  "user_id" integer PRIMARY KEY NOT NULL,
-  "user_uuid" varchar
+-- Table: user_master
+CREATE TABLE user_master (
+  user_id INTEGER PRIMARY KEY NOT NULL,
+  user_uuid VARCHAR
 );
 
-CREATE TABLE "user_metadata" (
-  "user_id" integer PRIMARY KEY NOT NULL,
-  "user_name" varchar,
-  "user_alias" varchar,
-  "user_password" varchar,
-  "user_phone_no" varchar,
-  "user_email" varchar,
-  "no_of_times_user_login" integer,
-  "no_of_problems_solved" integer,
-  "is_admin" boolean
+-- Table: user_metadata
+CREATE TABLE user_metadata (
+  user_id INTEGER PRIMARY KEY NOT NULL,
+  user_name VARCHAR,
+  user_alias VARCHAR,
+  user_password VARCHAR,
+  user_phone_no VARCHAR,
+  user_email VARCHAR,
+  no_of_times_user_login INTEGER,
+  no_of_problems_solved INTEGER,
+  is_admin BOOLEAN,
+  CONSTRAINT fk_user_metadata
+    FOREIGN KEY (user_id)
+    REFERENCES user_master(user_id)
 );
 
-CREATE TABLE "user_did_problem" (
-  "user_id" integer,
-  "problem_statement_id" integer
+-- Table: user_did_problem
+CREATE TABLE user_did_problem (
+  user_id INTEGER NOT NULL,
+  problem_statement_id INTEGER NOT NULL,
+  PRIMARY KEY (user_id, problem_statement_id),
+  CONSTRAINT fk_user_did_problem_user
+    FOREIGN KEY (user_id)
+    REFERENCES user_master(user_id),
+  CONSTRAINT fk_user_did_problem_problem
+    FOREIGN KEY (problem_statement_id)
+    REFERENCES problem_statement_master(problem_statement_id)
 );
 
-ALTER TABLE "problem_statement_test_cases" ADD FOREIGN KEY ("language_id") REFERENCES "language_info" ("language_id");
-
-ALTER TABLE "problem_statement_test_cases" ADD FOREIGN KEY ("problem_statement_id") REFERENCES "problem_statement_master" ("problem_statement_id");
-
-ALTER TABLE "problem_statement_metadata" ADD FOREIGN KEY ("problem_statement_id") REFERENCES "problem_statement_master" ("problem_statement_id");
-
-ALTER TABLE "user_metadata" ADD FOREIGN KEY ("user_id") REFERENCES "user_master" ("user_id");
-
-ALTER TABLE "user_did_problem" ADD FOREIGN KEY ("user_id") REFERENCES "user_master" ("user_id");
-
-ALTER TABLE "user_did_problem" ADD FOREIGN KEY ("problem_statement_id") REFERENCES "problem_statement_master" ("problem_statement_id");
+-- Table: test_cases_in_language
+CREATE TABLE test_cases_in_language (
+  language_id INTEGER PRIMARY KEY NOT NULL,
+  problem_statement_id INTEGER NOT NULL,
+  CONSTRAINT fk_test_cases_language
+    FOREIGN KEY (language_id)
+    REFERENCES language_info(language_id),
+  CONSTRAINT fk_test_cases_problem
+    FOREIGN KEY (problem_statement_id)
+    REFERENCES problem_statement_test_cases(problem_statement_id)
+);
