@@ -8,3 +8,12 @@ user_update_fields = {
     "no_of_problems_solved" : "user_metadata.no_of_problems_solved" ,
     "is_admin" : "user_metadata.is_admin"
 }
+
+problem_update_fields = {
+    "statement_body": "problem_statement_metadata.problem_statement_body",
+    "sample_input": "problem_statement_metadata.sample_input",
+    "sample_output": "problem_statement_metadata.sample_output",
+    "duration": "problem_statement_metadata.problem_duration",
+    "hint": "problem_statement_metadata.problem_hint",
+    "no_of_test_cases": "problem_statement_metadata.no_of_test_cases"
+}

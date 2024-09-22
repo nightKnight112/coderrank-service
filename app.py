@@ -4,9 +4,9 @@ import subprocess
 import docker
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
-from database_utils.models import LanguageInfo, UserMetadata, UserMaster
+from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases
 import uuid
-from database_utils.dbUtils import user_update_fields
+from database_utils.dbUtils import user_update_fields, problem_update_fields
 
 app = Flask(__name__)
 CORS(app)
@@ -195,11 +195,11 @@ def user_registration():
         db_session_ac.rollback()
         return jsonify({'error': e}), 500
     
-@app.route('/user-details/', defaults={'user_alias': None}, methods=['GET'])
-@app.route('/user-details/<string:user_alias>', methods=['GET'])
-def get_user_details(user_alias):
+@app.route('/user-details/', defaults={'user_uuid': None}, methods=['GET'])
+@app.route('/user-details/<string:user_uuid>', methods=['GET'])
+def get_user_details(user_uuid):
 
-    if user_alias is None:
+    if user_uuid is None:
         userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
         resBody = []
         for users in userDetails:
@@ -220,6 +220,21 @@ def get_user_details(user_alias):
 
         # print(resBody)
         return jsonify(resBody), 200
+    else:
+        userDetails = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
+        temp = {
+                    'user_id' : userDetails.user_uuid,
+                    'user_metadata' : {
+                        "full_name" : userDetails.user_metadata.user_name,
+                        "user_alias" : userDetails.user_metadata.user_alias,
+                        "user_password" : userDetails.user_metadata.user_password,
+                        "phone_no" : userDetails.user_metadata.user_phone_no,
+                        "email" : userDetails.user_metadata.user_email,
+                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved
+                    }
+                }
+        return jsonify(temp), 200
 
 @app.route('/delete-user', methods=['DELETE'])
 def delete_user():
@@ -258,11 +273,21 @@ def edit_user():
 
     if(user_to_be_edited == requester_id):
         try:
+            flag = True
             for field, model_attr in user_update_fields.items():
-                if field in edit_metadata and edit_metadata.get(field) is not None:
-                    setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+                if field in edit_metadata and edit_metadata.get(field) is not None and flag:
+                    if(field == "is_admin"):
+                        if(requesterUser.user_metadata.is_admin):
+                            setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+                        else:
+                            flag = False
+                    else:
+                        setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
             db_session_ac.commit()
-            return jsonify({'message': 'user details edited successfully'}), 200
+            if(flag):
+                return jsonify({'message': 'user details edited successfully'}), 200
+            else:
+                return jsonify({'error': 'privillege escalation attempted'}), 403
         except Exception as e:
             return jsonify({'error': 'user details cannot be edited'}), 400
     else:
@@ -274,6 +299,136 @@ def edit_user():
             return jsonify({'message': 'user details edited successfully'}), 200
         else:
             return jsonify({'message': 'cannot modify user'}), 400
+
+
+# problem end APIs
+
+@app.route('/get-problem-list/',defaults={'problem_id': None}, methods=['GET'])
+@app.route('/get-problem-list/<string:problem_id>',  methods=['GET'])
+def get_problem_list(problem_id):
+
+    if(problem_id):
+        allProblemList = []
+
+        allProblemObject = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
+        allProblemList = [{
+            "problem_statement_id" : allProblemObject.problem_statement_uuid,
+                "metadata" : {
+                    "question" : allProblemObject.problem_statement_metadata.problem_statement_body,
+                    "sample_input" : allProblemObject.problem_statement_metadata.sample_input,
+                    "sample_output" : allProblemObject.problem_statement_metadata.sample_output,
+                    "duration" : allProblemObject.problem_statement_metadata.problem_duration,
+                    "hints" : allProblemObject.problem_statement_metadata.problem_hint,
+                    "no_of_test_cases" : allProblemObject.problem_statement_metadata.no_of_test_cases
+                }
+        }]
+        return jsonify(allProblemList), 200
+
+    else:
+        allProblemList = []
+
+        allProblemObject = db_session_ac.query(ProblemStatementMaster).all()
+
+        for problems in allProblemObject:
+            temp = {
+                "problem_statement_id" : problems.problem_statement_uuid,
+                "metadata" : {
+                    "question" : problems.problem_statement_metadata.problem_statement_body,
+                    "sample_input" : problems.problem_statement_metadata.sample_input,
+                    "sample_output" : problems.problem_statement_metadata.sample_output,
+                    "duration" : problems.problem_statement_metadata.problem_duration,
+                    "hints" : problems.problem_statement_metadata.problem_hint,
+                    "no_of_test_cases" : problems.problem_statement_metadata.no_of_test_cases
+                }
+            }
+
+            allProblemList.append(temp)
+        
+        return jsonify(allProblemList), 200
+
+@app.route('/add-problem', methods=['POST'])
+def add_problem():
+    data = request.json
+    problem_statement_uuid = uuid.uuid4()
+    problem_statement_body = data['statement_body']
+    sample_input = data['sample_input']
+    sample_output = data['sample_output']
+    problem_statement_duration = data['duration']
+    problem_hint = data['hint']
+    no_of_test_cases = data['no_of_test_cases']
+
+    allProblems = db_session_ac.query(ProblemStatementMaster).all()
+    if(len(allProblems) > 0):
+        last_given_problem_id = allProblems[len(allProblems)-1].problem_statement_id
+        last_given_problem_id += 1
+    else:
+        last_given_problem_id = 1
+
+    new_problem_statement_master = ProblemStatementMaster(
+        problem_statement_id= last_given_problem_id,
+        problem_statement_uuid = problem_statement_uuid,
+        problem_statement_metadata = ProblemStatementMetadata(
+            problem_statement_id = last_given_problem_id,
+            problem_statement_body= problem_statement_body,
+            sample_input=sample_input,
+            sample_output=sample_output,
+            problem_duration = problem_statement_duration,
+            problem_hint = problem_hint,
+            no_of_test_cases = no_of_test_cases
+        )
+    )
+
+    try:
+        db_session_ac.add(new_problem_statement_master)
+        db_session_ac.commit()
+        return jsonify({'message': 'problem stored successfully'}), 200
+    except Exception as e:
+        db_session_ac.rollback()
+        return jsonify({'error': e}), 500
+
+
+@app.route('/edit-problem', methods=['PUT'])
+def edit_problem():
+    data = request.json
+    problem_to_be_edited = data['problem_to_be_edited']
+    requester_id = data['requester_user_id']
+    edit_metadata = data['edit_metadata']
+
+    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+
+    if(requesterUser.user_metadata.is_admin):
+        requestedProblem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_to_be_edited).first()
+        try:
+            for field, model_attr in problem_update_fields.items():
+                if field in edit_metadata and edit_metadata.get(field) is not None:
+                    setattr(requestedProblem.problem_statement_metadata, model_attr.split('.')[-1], edit_metadata[field])
+            db_session_ac.commit()
+            return jsonify({'message': 'problem details edited successfully'}), 200
+        except Exception as e:
+            return jsonify({'error': 'problem details cannot be edited'}), 400
+    else:
+        return jsonify({'error' : 'You donot have the permission to perform the action'}), 403
+
+
+
+@app.route('/delete-problem', methods=['DELETE'])
+def delete_problem():
+    data = request.json
+    requested_problem_id = data['requested_problem_id']
+    requester_user_id = data['requester_user_id']
+
+    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_user_id).first()
+    if(requesterUser.user_metadata.is_admin):
+        requestedProblem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_id).first()
+        try:
+            db_session_ac.delete(requestedProblem)
+            db_session_ac.commit()
+            return jsonify({'message' : 'problem deleted successfully'}), 200
+        except Exception as e:
+            return jsonify({'message' : 'error deleting problem'}), 400
+    else:
+        return jsonify({'error' : 'You donot have the permission to perform the action'}), 403
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
