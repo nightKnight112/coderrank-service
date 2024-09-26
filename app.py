@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 import subprocess
 import docker
@@ -7,19 +7,38 @@ from sqlalchemy.orm import sessionmaker, joinedload
 from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases
 import uuid
 from database_utils.dbUtils import user_update_fields, problem_update_fields
+from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+from datetime import timedelta
+import os
+import utils
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 #Db configuration
-DATABASE_URL = "postgresql://postgres:password@localhost:5432/coderrank_db"
+DATABASE_URL = "postgresql://postgres:postgres@192.168.0.110:5432/coderrank_db"
 db_engine = create_engine(DATABASE_URL)
 db_session = sessionmaker(bind=db_engine)
 db_session_ac = db_session() #dbSession object
 
 
+# Logging configuration
+logging.basicConfig(format="{asctime} - {levelname} - {message}", style="{", datefmt="%Y-%m-%d %H:%M:%S")
+
+# JWT config
+jwt = JWTManager(app)
+jwt_secret_key = os.popen("openssl rand -hex 32").read()
+app.config["JWT_SECRET_KEY"] = jwt_secret_key
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=1)
+app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
+
 #api to fetch all supported languages, language_id param to be used as primary key for testcases
 @app.route('/get-language-options', methods=["GET"])
+@jwt_required()
 def get_language_options():
     try:
         languages = db_session_ac.query(LanguageInfo).all()
@@ -139,17 +158,37 @@ def user_login():
     user_alias = data["user_alias"] #username == actual name && user_alias == username given by user, eg:Dedsec Potter, CoderMaster69
     password = data["password"]
     try:
-        users = db_session_ac.query(UserMetadata).filter_by(user_alias=user_alias,user_password=password).all()
-        user_id = users[0].user_id
-        user_master_data = db_session_ac.query(UserMaster).filter_by(user_id=user_id).all()
-        user_uuid = user_master_data[0].user_uuid
-        is_user_admin = user_master_data[0].user_metadata.is_admin
-        if(len(users) == 1):
-            return jsonify({'message': 'Logged in successfully', 'user_id' : user_uuid, 'admin_user' : is_user_admin}), 200
+        users = db_session_ac.query(UserMetadata).filter_by(user_alias=user_alias).all()
+        if users and check_password_hash(users[0].user_password, password):
+            user_id = users[0].user_id
+            user_master_data = db_session_ac.query(UserMaster).filter_by(user_id=user_id).all()
+            user_uuid = user_master_data[0].user_uuid
+            is_user_admin = user_master_data[0].user_metadata.is_admin
+
+            users[0].no_of_times_user_login += 1
+            db_session_ac.commit()
+
+            access_token = create_access_token(identity=user_alias, additional_claims={"user_uuid": user_uuid})
+            refresh_token = create_refresh_token(identity=user_alias, additional_claims={"user_uuid": user_uuid})
+            
+            response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token})) 
+            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(days=30))
+            return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
     except Exception as e:
+        print(e)
+        logging.error(e)
         return jsonify({'message': 'Failed to login user'}), 500
+
+@app.route("/renew-token", methods=["POST"])
+@jwt_required(refresh=True)
+def renew_token():
+    identity = get_jwt_identity()
+    user_uuid = utils.decode_token(request.cookies["refresh_token_cookie"], jwt_secret_key)["user_uuid"]
+    print(user_uuid)
+    new_access_token =  create_access_token(identity, additional_claims={"user_uuid": user_uuid})
+    return jsonify({"access_token": new_access_token})
 
 @app.route('/register-user', methods=['POST'])
 def user_registration():
@@ -157,24 +196,19 @@ def user_registration():
     user_uuid = uuid.uuid4()
     name = data['full_name']
     user_alias = data['user_alias']
-    password = data['user_password']
+    password = generate_password_hash(data['user_password'])
     phone = data['phone_no']
     email = data['email']
 
-    allUsers = db_session_ac.query(UserMaster).all()
-    if(len(allUsers) > 0):
-        last_given_userid = allUsers[len(allUsers)-1].user_id
-        last_given_userid += 1
-    else:
-        last_given_userid = 1
+    users = db_session_ac.query(UserMetadata).filter_by(user_alias=user_alias).all()
+    if users:
+        return jsonify({"message": "This username already exists, please try a different one"}), 400
 
     new_user_master = UserMaster(
-        user_id=last_given_userid,
         user_uuid=user_uuid
     )
 
     new_user_metadata = UserMetadata(
-        user_id=last_given_userid,
         user_name=name,
         user_alias=user_alias,
         user_password=password,
@@ -190,53 +224,14 @@ def user_registration():
     try:
         db_session_ac.add(new_user_master)
         db_session_ac.commit()
-        return jsonify({'message': 'user registered successfully'}), 200
+        return jsonify({'message': 'User registered successfully'}), 200
     except Exception as e:
         db_session_ac.rollback()
-        return jsonify({'error': e}), 500
-    
-@app.route('/user-details/', defaults={'user_uuid': None}, methods=['GET'])
-@app.route('/user-details/<string:user_uuid>', methods=['GET'])
-def get_user_details(user_uuid):
-
-    if user_uuid is None:
-        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
-        resBody = []
-        for users in userDetails:
-            if(users.user_metadata.is_admin == False): #admin user cannot view other admin user data
-                temp = {
-                    'user_id' : users.user_uuid,
-                    'user_metadata' : {
-                        "full_name" : users.user_metadata.user_name,
-                        "user_alias" : users.user_metadata.user_alias,
-                        "user_password" : users.user_metadata.user_password,
-                        "phone_no" : users.user_metadata.user_phone_no,
-                        "email" : users.user_metadata.user_email,
-                        "user_login_count" : users.user_metadata.no_of_times_user_login,
-                        "problem_solved_count" : users.user_metadata.no_of_problems_solved
-                    }
-                }
-                resBody.append(temp)
-
-        # print(resBody)
-        return jsonify(resBody), 200
-    else:
-        userDetails = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
-        temp = {
-                    'user_id' : userDetails.user_uuid,
-                    'user_metadata' : {
-                        "full_name" : userDetails.user_metadata.user_name,
-                        "user_alias" : userDetails.user_metadata.user_alias,
-                        "user_password" : userDetails.user_metadata.user_password,
-                        "phone_no" : userDetails.user_metadata.user_phone_no,
-                        "email" : userDetails.user_metadata.user_email,
-                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
-                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved
-                    }
-                }
-        return jsonify(temp), 200
+        logging.error(e)
+        return jsonify({'message': 'Failed to register'}), 500
 
 @app.route('/delete-user', methods=['DELETE'])
+@jwt_required()
 def delete_user():
     data = request.json
     user_to_be_deleted = data['user_to_be_deleted']
@@ -262,6 +257,7 @@ def delete_user():
             return jsonify({'message': 'cannot delete user, user unauthorized or does not exist'}), 400
 
 @app.route('/edit-user', methods=['PUT'])
+@jwt_required()
 def edit_user():
     data = request.json
     user_to_be_edited = data['user_to_be_edited']
@@ -301,10 +297,17 @@ def edit_user():
             return jsonify({'message': 'cannot modify user'}), 400
 
 
+@app.route("/view-user", methods=["GET"])
+@jwt_required()
+def view_user():
+    print(request.headers)
+    return jsonify(1)
+
 # problem end APIs
 
 @app.route('/get-problem-list/',defaults={'problem_id': None}, methods=['GET'])
 @app.route('/get-problem-list/<string:problem_id>',  methods=['GET'])
+@jwt_required()
 def get_problem_list(problem_id):
 
     if(problem_id):
@@ -347,6 +350,7 @@ def get_problem_list(problem_id):
         return jsonify(allProblemList), 200
 
 @app.route('/add-problem', methods=['POST'])
+@jwt_required()
 def add_problem():
     data = request.json
     problem_statement_uuid = uuid.uuid4()
@@ -388,6 +392,7 @@ def add_problem():
 
 
 @app.route('/edit-problem', methods=['PUT'])
+@jwt_required()
 def edit_problem():
     data = request.json
     problem_to_be_edited = data['problem_to_be_edited']
@@ -412,6 +417,7 @@ def edit_problem():
 
 
 @app.route('/delete-problem', methods=['DELETE'])
+@jwt_required()
 def delete_problem():
     data = request.json
     requested_problem_id = data['requested_problem_id']

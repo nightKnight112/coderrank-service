@@ -23,20 +23,20 @@ DROP TABLE IF EXISTS test_cases_in_language CASCADE;
 
 -- Table: language_info
 CREATE TABLE language_info (
-  language_id INTEGER PRIMARY KEY NOT NULL,
+  language_id BIGSERIAL PRIMARY KEY NOT NULL,
   language_uuid VARCHAR,
   language_name VARCHAR
 );
 
 -- Table: problem_statement_master
 CREATE TABLE problem_statement_master (
-  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  problem_statement_id BIGSERIAL PRIMARY KEY NOT NULL,
   problem_statement_uuid VARCHAR
 );
 
 -- Table: problem_statement_metadata
 CREATE TABLE problem_statement_metadata (
-  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  problem_statement_id BIGSERIAL PRIMARY KEY NOT NULL,
   problem_statement_body TEXT,
   sample_input VARCHAR,
   sample_output VARCHAR,
@@ -50,7 +50,8 @@ CREATE TABLE problem_statement_metadata (
 
 -- Table: problem_statement_test_cases
 CREATE TABLE problem_statement_test_cases (
-  problem_statement_id INTEGER PRIMARY KEY NOT NULL,
+  test_case_id BIGSERIAL PRIMARY KEY NOT NULL,
+  problem_statement_id INTEGER NOT NULL,
   language_id INTEGER,
   expected_input VARCHAR,
   expected_output VARCHAR,
@@ -66,13 +67,13 @@ CREATE TABLE problem_statement_test_cases (
 
 -- Table: user_master
 CREATE TABLE user_master (
-  user_id INTEGER PRIMARY KEY NOT NULL,
+  user_id BIGSERIAL PRIMARY KEY NOT NULL,
   user_uuid VARCHAR
 );
 
 -- Table: user_metadata
 CREATE TABLE user_metadata (
-  user_id INTEGER PRIMARY KEY NOT NULL,
+  user_id BIGSERIAL PRIMARY KEY NOT NULL,
   user_name VARCHAR,
   user_alias VARCHAR,
   user_password VARCHAR,

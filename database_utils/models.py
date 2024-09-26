@@ -7,7 +7,7 @@ Base = declarative_base()
 class UserMetadata(Base):
     __tablename__ = "user_metadata"
 
-    user_id = Column(Integer,ForeignKey('user_master.user_id'), primary_key=True)
+    user_id = Column(Integer,ForeignKey('user_master.user_id'), primary_key=True, autoincrement=True)
     user_name = Column(String)
     user_alias = Column(String)
     user_password = Column(String)
@@ -22,7 +22,7 @@ class UserMetadata(Base):
 class UserMaster(Base):
     __tablename__ = "user_master"
 
-    user_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, primary_key=True, autoincrement=True)
     user_uuid = Column(String)
 
     user_metadata = relationship("UserMetadata", back_populates="user_master", uselist=False, cascade="all, delete")
@@ -36,15 +36,15 @@ class UserDidProblem(Base):
 class LanguageInfo(Base):
     __tablename__ = "language_info"
 
-    language_id = Column(Integer, primary_key=True)
+    language_id = Column(Integer, primary_key=True, autoincrement=True)
     language_uuid = Column(String)
     language_name = Column(String)
 
 class ProblemStatementTestCases(Base):
 
     __tablename__ = "problem_statement_test_cases"
-
-    problem_statement_id = Column(Integer, primary_key=True)
+    test_case_id = Column(Integer, primary_key=True, autoincrement=True)
+    problem_statement_id = Column(Integer)
     language_id = Column(Integer)
     expected_input = Column(String)
     expected_output = Column(String)
@@ -55,7 +55,7 @@ class ProblemStatementMaster(Base):
 
     __tablename__ = "problem_statement_master"
 
-    problem_statement_id = Column(Integer, primary_key=True)
+    problem_statement_id = Column(Integer, primary_key=True, autoincrement=True)
     problem_statement_uuid = Column(String)
     problem_statement_metadata = relationship("ProblemStatementMetadata", back_populates="problem_statement_master", uselist=False, cascade="all, delete")
 
@@ -63,7 +63,7 @@ class ProblemStatementMetadata(Base):
 
     __tablename__ = "problem_statement_metadata"
 
-    problem_statement_id = Column(Integer, ForeignKey('problem_statement_master.problem_statement_id'), primary_key=True)
+    problem_statement_id = Column(Integer, ForeignKey('problem_statement_master.problem_statement_id'), primary_key=True, autoincrement=True)
     problem_statement_body = Column(Text)
     sample_input = Column(String)
     sample_output = Column(String)
