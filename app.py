@@ -183,7 +183,7 @@ def user_login():
             if environment == "local": 
                 response.set_cookie("refresh_token_cookie", refresh_token, path="/", secure=True, samesite="None", max_age=timedelta(days=30))
             else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, path="/api", max_age=timedelta(days=30))
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, path="/api/renew-token", max_age=timedelta(days=30))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
