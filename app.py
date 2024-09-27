@@ -17,8 +17,14 @@ import utils
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
+environment = os.environ.get("env")
+db_username = os.environ.get("db_username")
+db_password = os.environ.get("db_password")
+vm_ip = os.environ.get("vm_ip")
+
 #Db configuration
-DATABASE_URL = "postgresql://postgres:postgres@192.168.0.110:5432/coderrank_db"
+DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}/coderrank_db"
+print(DATABASE_URL)
 db_engine = create_engine(DATABASE_URL)
 db_session = sessionmaker(bind=db_engine)
 db_session_ac = db_session() #dbSession object
@@ -154,6 +160,7 @@ def execute_code():
 #user-end apis
 @app.route('/login-user', methods=['POST'])
 def user_login():
+    print(environment, db_username, db_password, vm_ip)
     data = request.json
     user_alias = data["user_alias"] #username == actual name && user_alias == username given by user, eg:Dedsec Potter, CoderMaster69
     password = data["password"]
@@ -171,8 +178,12 @@ def user_login():
             access_token = create_access_token(identity=user_alias, additional_claims={"user_uuid": user_uuid})
             refresh_token = create_refresh_token(identity=user_alias, additional_claims={"user_uuid": user_uuid})
             
-            response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token})) 
-            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(days=30))
+            response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token}))
+
+            if environment == "local": 
+                response.set_cookie("refresh_token_cookie", refresh_token, path="/", secure=True, samesite="None", max_age=timedelta(days=30))
+            else:
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, path="/api", max_age=timedelta(days=30))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
