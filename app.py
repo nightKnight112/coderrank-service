@@ -13,6 +13,8 @@ from flask_jwt_extended import JWTManager, create_access_token, create_refresh_t
 from datetime import timedelta
 import os
 import utils
+import requests
+import json
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -23,7 +25,7 @@ db_password = os.environ.get("db_password")
 vm_ip = os.environ.get("vm_ip")
 
 #Db configuration
-DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}/coderrank_db"
+DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}:5432/coderrank_db"
 print(DATABASE_URL)
 db_engine = create_engine(DATABASE_URL)
 db_session = sessionmaker(bind=db_engine)
@@ -68,7 +70,6 @@ def execute():
     input = data["input"]
 
     output = ""
-    response = ""
     
     with open("/home/codes/input.txt", "w") as f:
         f.write(input)
@@ -77,23 +78,14 @@ def execute():
         with open("/home/codes/Solution.java", "w") as f:
             f.write(code)
         
-        output = subprocess.run(["./java-execute.sh"], capture_output=True, text=True)
+        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"filename": "/home/codes/Solution.java", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
     else:
         with open("/home/codes/solution.py", "w") as f:
             f.write(code)
         
         output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
     
-    print("Output: ",output.stdout)
-    print("Error: ", output.stderr)
-    if(len(output.stderr) > len(output.stdout)):
-        response = output.stderr
-    else:
-        response = output.stdout
-    
-    response = response.strip()
-    
-    return jsonify(response)
+    return jsonify(output)
 
 # code execution through docker exec
 @app.route('/execute_code_docker', methods=['POST'])
