@@ -38,7 +38,7 @@ jwt = JWTManager(app)
 jwt_secret_key = os.popen("openssl rand -hex 32").read()
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=1)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=2)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
@@ -181,9 +181,11 @@ def user_login():
             response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token}))
 
             if environment == "local": 
-                response.set_cookie("refresh_token_cookie", refresh_token, secure=True, samesite="None", max_age=timedelta(days=30))
+                response.set_cookie("refresh_token_cookie", refresh_token, secure=True, samesite="None", max_age=timedelta(minutes=2))
+                response.set_cookie("isLoggedIn", "true", secure=True, samesite="None", max_age=timedelta(minutes=2))
             else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(days=30))
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=2))
+                response.set_cookie("isLoggedIn", "true", max_age=timedelta(minutes=2))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
@@ -240,6 +242,47 @@ def user_registration():
         db_session_ac.rollback()
         logging.error(e)
         return jsonify({'message': 'Failed to register'}), 500
+
+@app.route('/user-details/', defaults={'user_uuid': None}, methods=['GET'])
+@app.route('/user-details/<string:user_uuid>', methods=['GET'])
+@jwt_required()
+def get_user_details(user_uuid):
+    if user_uuid is None:
+        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
+        resBody = []
+        for users in userDetails:
+            if(users.user_metadata.is_admin == False): #admin user cannot view other admin user data
+                temp = {
+                    'user_id' : users.user_uuid,
+                    'user_metadata' : {
+                        "full_name" : users.user_metadata.user_name,
+                        "user_alias" : users.user_metadata.user_alias,
+                        "user_password" : users.user_metadata.user_password,
+                        "phone_no" : users.user_metadata.user_phone_no,
+                        "email" : users.user_metadata.user_email,
+                        "user_login_count" : users.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : users.user_metadata.no_of_problems_solved
+                    }
+                }
+                resBody.append(temp)
+
+        # print(resBody)
+        return jsonify(resBody), 200
+    else:
+        userDetails = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
+        temp = {
+                    'user_id' : userDetails.user_uuid,
+                    'user_metadata' : {
+                        "full_name" : userDetails.user_metadata.user_name,
+                        "user_alias" : userDetails.user_metadata.user_alias,
+                        "user_password" : userDetails.user_metadata.user_password,
+                        "phone_no" : userDetails.user_metadata.user_phone_no,
+                        "email" : userDetails.user_metadata.user_email,
+                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved
+                    }
+                }
+        return jsonify(temp), 200
 
 @app.route('/delete-user', methods=['DELETE'])
 @jwt_required()
