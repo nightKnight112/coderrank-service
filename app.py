@@ -40,7 +40,7 @@ jwt = JWTManager(app)
 jwt_secret_key = os.popen("openssl rand -hex 32").read()
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=2)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=5)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
@@ -173,11 +173,11 @@ def user_login():
             response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token}))
 
             if environment == "local": 
-                response.set_cookie("refresh_token_cookie", refresh_token, secure=True, samesite="None", max_age=timedelta(minutes=2))
-                response.set_cookie("isLoggedIn", "true", secure=True, samesite="None", max_age=timedelta(minutes=2))
+                response.set_cookie("refresh_token_cookie", refresh_token, secure=True, samesite="None", max_age=timedelta(minutes=5))
+                response.set_cookie("isLoggedIn", "true", secure=True, samesite="None", max_age=timedelta(minutes=5))
             else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=2))
-                response.set_cookie("isLoggedIn", "true", max_age=timedelta(minutes=2))
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=5))
+                response.set_cookie("isLoggedIn", "true", max_age=timedelta(minutes=5))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
