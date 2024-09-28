@@ -78,12 +78,12 @@ def execute():
         with open("/home/codes/Solution.java", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"filename": "/home/codes/Solution.java", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": "/home/codes/Solution.java", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
     else:
         with open("/home/codes/solution.py", "w") as f:
             f.write(code)
         
-        output = subprocess.run(["./python-execute.sh"], capture_output=True, text=True)
+        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": "/home/codes/solution.py", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
     
     return jsonify(output)
 
