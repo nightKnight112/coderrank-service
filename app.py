@@ -46,7 +46,6 @@ app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
 #api to fetch all supported languages, language_id param to be used as primary key for testcases
 @app.route('/get-language-options', methods=["GET"])
-@jwt_required()
 def get_language_options():
     try:
         languages = db_session_ac.query(LanguageInfo).all()
