@@ -39,8 +39,8 @@ logging.basicConfig(format="{asctime} - {levelname} - {message}", style="{", dat
 jwt = JWTManager(app)
 jwt_secret_key = os.popen("openssl rand -hex 32").read()
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=5)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=5)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=30)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
@@ -151,7 +151,6 @@ def execute_code():
 #user-end apis
 @app.route('/login-user', methods=['POST'])
 def user_login():
-    print(environment, db_username, db_password, vm_ip)
     data = request.json
     user_alias = data["user_alias"] #username == actual name && user_alias == username given by user, eg:Dedsec Potter, CoderMaster69
     password = data["password"]
@@ -234,10 +233,38 @@ def user_registration():
         logging.error(e)
         return jsonify({'message': 'Failed to register'}), 500
 
-@app.route('/user-details/', defaults={'user_uuid': None}, methods=['GET'])
-@app.route('/user-details/<string:user_uuid>', methods=['GET'])
+@app.route("/get-user-data", methods=['GET'])
 @jwt_required()
-def get_user_details(user_uuid):
+def get_user_data():
+    response = {}
+    try:
+        token = request.headers['Authorization'].split()[1]
+        user_alias = utils.decode_token(token, secret=jwt_secret_key)["sub"]
+
+        user_data = db_session_ac.query(UserMetadata).filter_by(user_alias=user_alias).first()
+        response = {
+            "message": "User details fetched successfully",
+            "user_id": user_data.user_id,
+            "user_name": user_data.user_name,
+            "user_phone_no": user_data.user_phone_no,
+            "user_email": user_data.user_email,
+            "no_of_times_user_login": user_data.no_of_times_user_login,
+            "no_of_problems_solved": user_data.no_of_problems_solved,
+            "is_admin": user_data.is_admin
+        }
+
+        return jsonify(response)
+    except Exception as e:
+        logging.error(e)
+        response = {
+            "message": "Something went wrong"
+        }
+        return jsonify(response), 500
+
+@app.route('/user-details-list/', defaults={'user_uuid': None}, methods=['GET'])
+@app.route('/user-details-list/<string:user_uuid>', methods=['GET'])
+@jwt_required()
+def get_user_details_list(user_uuid):
     if user_uuid is None:
         userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
         resBody = []
