@@ -171,11 +171,9 @@ def user_login():
             response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token}))
 
             if environment == "local": 
-                response.set_cookie("refresh_token_cookie", refresh_token, secure=True, samesite="None", max_age=timedelta(minutes=5))
-                response.set_cookie("isLoggedIn", "true", secure=True, samesite="None", max_age=timedelta(minutes=5))
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=30))
             else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=5))
-                response.set_cookie("isLoggedIn", "true", max_age=timedelta(minutes=5))
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=30))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
