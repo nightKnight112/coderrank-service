@@ -40,7 +40,7 @@ jwt = JWTManager(app)
 jwt_secret_key = os.popen("openssl rand -hex 32").read()
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=5)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=7)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=30)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
