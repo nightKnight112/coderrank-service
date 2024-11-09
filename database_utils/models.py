@@ -1,6 +1,7 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -72,3 +73,10 @@ class ProblemStatementMetadata(Base):
     no_of_test_cases = Column(Integer)
 
     problem_statement_master = relationship("ProblemStatementMaster", back_populates="problem_statement_metadata")
+
+class BlacklistedTokens(Base):
+    __tablename__ = "blacklisted_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    blacklisted_token = Column(String)
+    blacklisted_timestamp = Column(DateTime, default=datetime.now)

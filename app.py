@@ -4,13 +4,13 @@ import subprocess
 import docker
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
-from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases
+from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases, BlacklistedTokens
 import uuid
 from database_utils.dbUtils import user_update_fields, problem_update_fields
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
-from datetime import timedelta
+from datetime import timedelta, datetime
 import os
 import utils
 import requests
@@ -40,7 +40,7 @@ jwt = JWTManager(app)
 jwt_secret_key = os.popen("openssl rand -hex 32").read()
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=5)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=30)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=7)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
 
@@ -186,7 +186,11 @@ def user_login():
 @jwt_required(refresh=True)
 def renew_token():
     identity = get_jwt_identity()
-    user_uuid = utils.decode_token(request.cookies["refresh_token_cookie"], jwt_secret_key)["user_uuid"]
+    refresh_token = request.cookies["refresh_token_cookie"]
+    if db_session_ac.query(BlacklistedTokens).filter_by(blacklisted_token=str(hash(refresh_token))).count() != 0:
+	    return jsonify({"message": "Token expired or invalid"}), 401
+
+    user_uuid = utils.decode_token(refresh_token, jwt_secret_key)["user_uuid"]
     print(user_uuid)
     new_access_token =  create_access_token(identity, additional_claims={"user_uuid": user_uuid})
     return jsonify({"access_token": new_access_token})
@@ -230,6 +234,25 @@ def user_registration():
         db_session_ac.rollback()
         logging.error(e)
         return jsonify({'message': 'Failed to register'}), 500
+
+@app.route("/logout", methods=["POST"])
+@jwt_required(refresh=True)
+def logout():
+    try:
+        refresh_token = request.cookies["refresh_token_cookie"]
+        bt = BlacklistedTokens(blacklisted_token=hash(refresh_token))
+        db_session_ac.add(bt)
+        db_session_ac.commit()
+        response = make_response(jsonify({"message": "Logout successful"}))
+        if environment == "local": 
+            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
+        else:
+            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+        
+        return response
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
 
 @app.route("/get-user-data", methods=['GET'])
 @jwt_required()
