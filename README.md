@@ -1,4 +1,4 @@
-# coderrank-query-execution-service
+# coderrank-service
 
 Build:
 
@@ -6,4 +6,4 @@ Build:
 
 Run:
 
-```docker run --network=host -itd -v /home/anurag/coderrank-query-execution-service/:/app -p 5000:5000 coderrank-service:v1```
+```docker run -itd -v /home/anurag/codes/:/home/codes -p 5000:5000 coderrank-service```

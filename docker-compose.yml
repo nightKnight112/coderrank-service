@@ -1,0 +1,49 @@
+services:
+  nginx:
+    build: ./nginx
+    image: nginx
+    container_name: nginx
+    ports:
+      - "8080:80"
+  coderrank-ui:
+    build: ./coderrank-ui
+    image: coderrank-ui
+    container_name: coderrank-ui
+    ports:
+      - "3000:3000"
+  coderrank-service:
+    build: ./coderrank-service
+    image: coderrank-service
+    container_name: coderrank-service
+    volumes:
+      - "/home/anurag/codes:/home/codes"
+    ports:
+      - "5000:5000"
+    environment:
+      env: dev
+      db_username: ""
+      db_password: ""
+      vm_ip: ""
+  coderrank-execution-service:
+    build: ./coderrank-execution-service
+    image: coderrank-execution-service
+    container_name: coderrank-execution-service
+    volumes:
+      - "/home/anurag/codes:/home/codes"
+    ports:
+      - "5001:5000"
+  coderrank-db:
+    image: postgres
+    container_name: coderrank-db
+    volumes:
+      - "postgres-data:/var/lib/postgresql/data"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ""
+      POSTGRES_PASSWORD: ""
+      POSTGRES_DB: coderrank_db
+volumes:
+  postgres-data:
+
+
