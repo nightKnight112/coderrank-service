@@ -185,15 +185,21 @@ def user_login():
 @app.route("/renew-token", methods=["POST"])
 @jwt_required(refresh=True)
 def renew_token():
-    identity = get_jwt_identity()
-    refresh_token = request.cookies["refresh_token_cookie"]
-    if db_session_ac.query(BlacklistedTokens).filter_by(blacklisted_token=str(hash(refresh_token))).count() != 0:
-	    return jsonify({"message": "Token expired or invalid"}), 401
+    try:
+        identity = get_jwt_identity()
+        refresh_token = request.cookies["refresh_token_cookie"]
+        if db_session_ac.query(BlacklistedTokens).filter_by(blacklisted_token=str(hash(refresh_token))).count() != 0:
+            return jsonify({"message": "Token expired or invalid"}), 401
 
-    user_uuid = utils.decode_token(refresh_token, jwt_secret_key)["user_uuid"]
-    print(user_uuid)
-    new_access_token =  create_access_token(identity, additional_claims={"user_uuid": user_uuid})
-    return jsonify({"access_token": new_access_token})
+        user_uuid = utils.decode_token(refresh_token, jwt_secret_key)["user_uuid"]
+        print(user_uuid)
+        new_access_token =  create_access_token(identity, additional_claims={"user_uuid": user_uuid})
+
+        return jsonify({"access_token": new_access_token})
+    
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
 
 @app.route('/register-user', methods=['POST'])
 def user_registration():
@@ -240,7 +246,7 @@ def user_registration():
 def logout():
     try:
         refresh_token = request.cookies["refresh_token_cookie"]
-        bt = BlacklistedTokens(blacklisted_token=hash(refresh_token))
+        bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
         db_session_ac.add(bt)
         db_session_ac.commit()
         response = make_response(jsonify({"message": "Logout successful"}))
@@ -249,6 +255,15 @@ def logout():
         else:
             response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
         
+        blacklisted_tokens = db_session_ac.query(BlacklistedTokens).all()
+        
+        for i, value in enumerate(blacklisted_tokens):
+            current_time = datetime.now()
+            time_difference = current_time - value.blacklisted_timestamp
+            if (time_difference.seconds / 60) > 30:
+                db_session_ac.delete(value)        
+        
+        db_session_ac.commit()
         return response
     except Exception as e:
         logging.error(e)
@@ -296,7 +311,6 @@ def get_user_details_list(user_uuid):
                     'user_metadata' : {
                         "full_name" : users.user_metadata.user_name,
                         "user_alias" : users.user_metadata.user_alias,
-                        "user_password" : users.user_metadata.user_password,
                         "phone_no" : users.user_metadata.user_phone_no,
                         "email" : users.user_metadata.user_email,
                         "user_login_count" : users.user_metadata.no_of_times_user_login,
@@ -314,7 +328,6 @@ def get_user_details_list(user_uuid):
                     'user_metadata' : {
                         "full_name" : userDetails.user_metadata.user_name,
                         "user_alias" : userDetails.user_metadata.user_alias,
-                        "user_password" : userDetails.user_metadata.user_password,
                         "phone_no" : userDetails.user_metadata.user_phone_no,
                         "email" : userDetails.user_metadata.user_email,
                         "user_login_count" : userDetails.user_metadata.no_of_times_user_login,

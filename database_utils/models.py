@@ -79,4 +79,4 @@ class BlacklistedTokens(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     blacklisted_token = Column(String)
-    blacklisted_timestamp = Column(DateTime, default=datetime.now)
+    blacklisted_timestamp = Column(DateTime)
