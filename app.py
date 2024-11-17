@@ -322,7 +322,7 @@ def get_user_details_list(user_uuid):
         # print(resBody)
         return jsonify(resBody), 200
     else:
-        userDetails = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
+        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
         temp = {
                     'user_id' : userDetails.user_uuid,
                     'user_metadata' : {
@@ -331,7 +331,8 @@ def get_user_details_list(user_uuid):
                         "phone_no" : userDetails.user_metadata.user_phone_no,
                         "email" : userDetails.user_metadata.user_email,
                         "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
-                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved
+                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
+                        "is_admin": str(userDetails.user_metadata.is_admin)
                     }
                 }
         return jsonify(temp), 200
@@ -341,7 +342,7 @@ def get_user_details_list(user_uuid):
 def delete_user():
     data = request.json
     user_to_be_deleted = data['user_to_be_deleted']
-    requester_id = data['requester_user_id']
+    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
 
     requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_deleted).first()
 
@@ -349,25 +350,38 @@ def delete_user():
         try:
             db_session_ac.delete(requestedUser)
             db_session_ac.commit()
-            return jsonify({'message': 'user deleted successfully'}), 200
+            response = make_response(jsonify({'message': 'User deleted successfully', 'self_delete': 'true'}))
+            
+            refresh_token = request.cookies["refresh_token_cookie"]
+            bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
+            db_session_ac.add(bt)
+            db_session_ac.commit()
+            
+            if environment == "local": 
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
+            else:
+                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+                
+            return response
         except Exception as e:
-            return jsonify({'message': 'cannot delete user, user does not exist'}), 400
+            logging.error(e)
+            return jsonify({'message': 'Cannot delete user, user does not exist'}), 400
     
     else: #admin deletes user logic
         requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
         if(requesterUser and requesterUser.user_metadata.is_admin):
             db_session_ac.delete(requestedUser)
             db_session_ac.commit()
-            return jsonify({'message': 'user deleted successfully'}), 200
+            return jsonify({'message': 'User deleted successfully', 'self_delete': 'false'}), 200
         else:
-            return jsonify({'message': 'cannot delete user, user unauthorized or does not exist'}), 400
+            return jsonify({'message': 'Cannot delete user, user unauthorized or does not exist'}), 400
 
 @app.route('/edit-user', methods=['PUT'])
 @jwt_required()
 def edit_user():
     data = request.json
     user_to_be_edited = data['user_to_be_edited']
-    requester_id = data['requester_user_id']
+    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], secret=jwt_secret_key)["user_uuid"]
     edit_metadata = data['edit_metadata']
 
     requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_edited).first()
@@ -387,20 +401,21 @@ def edit_user():
                         setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
             db_session_ac.commit()
             if(flag):
-                return jsonify({'message': 'user details edited successfully'}), 200
+                return jsonify({'message': 'User details edited successfully'}), 200
             else:
-                return jsonify({'error': 'privillege escalation attempted'}), 403
+                return jsonify({'message': 'Privillege escalation attempted'}), 403
         except Exception as e:
-            return jsonify({'error': 'user details cannot be edited'}), 400
+            logging.error(e)
+            return jsonify({'message': 'User details cannot be edited'}), 400
     else:
         if(requesterUser and requesterUser.user_metadata.is_admin):
             for field, model_attr in user_update_fields.items():
                 if field in edit_metadata and edit_metadata.get(field) is not None:
                     setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
             db_session_ac.commit()
-            return jsonify({'message': 'user details edited successfully'}), 200
+            return jsonify({'message': 'User details edited successfully'}), 200
         else:
-            return jsonify({'message': 'cannot modify user'}), 400
+            return jsonify({'message': 'Cannot modify user'}), 400
 
 
 @app.route("/view-user", methods=["GET"])
