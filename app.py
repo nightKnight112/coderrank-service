@@ -305,19 +305,19 @@ def get_user_details_list(user_uuid):
         userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).all()
         resBody = []
         for users in userDetails:
-            if(users.user_metadata.is_admin == False): #admin user cannot view other admin user data
-                temp = {
-                    'user_id' : users.user_uuid,
-                    'user_metadata' : {
-                        "full_name" : users.user_metadata.user_name,
-                        "user_alias" : users.user_metadata.user_alias,
-                        "phone_no" : users.user_metadata.user_phone_no,
-                        "email" : users.user_metadata.user_email,
-                        "user_login_count" : users.user_metadata.no_of_times_user_login,
-                        "problem_solved_count" : users.user_metadata.no_of_problems_solved
-                    }
+            temp = {
+                'user_id' : users.user_uuid,
+                'user_metadata' : {
+                    "full_name" : users.user_metadata.user_name,
+                    "user_alias" : users.user_metadata.user_alias,
+                    "phone_no" : users.user_metadata.user_phone_no,
+                    "email" : users.user_metadata.user_email,
+                    "user_login_count" : users.user_metadata.no_of_times_user_login,
+                    "problem_solved_count" : users.user_metadata.no_of_problems_solved,
+                    "is_admin": str(users.user_metadata.is_admin)
                 }
-                resBody.append(temp)
+            }
+            resBody.append(temp)
 
         # print(resBody)
         return jsonify(resBody), 200
