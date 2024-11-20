@@ -111,3 +111,11 @@ CREATE TABLE test_cases_in_language (
     FOREIGN KEY (problem_statement_id)
     REFERENCES problem_statement_test_cases(problem_statement_id)
 );
+
+
+CREATE TABLE public.blacklisted_tokens (
+	id bigserial NOT NULL,
+	blacklisted_token varchar NULL,
+	blacklisted_timestamp timestamp NULL,
+	CONSTRAINT blacklisted_tokens_pkey PRIMARY KEY (id)
+);
