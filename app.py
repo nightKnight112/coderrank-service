@@ -307,15 +307,14 @@ def get_user_details_list(user_uuid):
         for users in userDetails:
             temp = {
                 'user_id' : users.user_uuid,
-                'user_metadata' : {
-                    "full_name" : users.user_metadata.user_name,
-                    "user_alias" : users.user_metadata.user_alias,
-                    "phone_no" : users.user_metadata.user_phone_no,
-                    "email" : users.user_metadata.user_email,
-                    "user_login_count" : users.user_metadata.no_of_times_user_login,
-                    "problem_solved_count" : users.user_metadata.no_of_problems_solved,
-                    "is_admin": str(users.user_metadata.is_admin)
-                }
+                "full_name" : users.user_metadata.user_name,
+                "user_alias" : users.user_metadata.user_alias,
+                "phone_no" : users.user_metadata.user_phone_no,
+                "email" : users.user_metadata.user_email,
+                "user_login_count" : users.user_metadata.no_of_times_user_login,
+                "problem_solved_count" : users.user_metadata.no_of_problems_solved,
+                "is_admin": str(users.user_metadata.is_admin)
+                
             }
             resBody.append(temp)
 
@@ -325,15 +324,14 @@ def get_user_details_list(user_uuid):
         userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
         temp = {
                     'user_id' : userDetails.user_uuid,
-                    'user_metadata' : {
-                        "full_name" : userDetails.user_metadata.user_name,
-                        "user_alias" : userDetails.user_metadata.user_alias,
-                        "phone_no" : userDetails.user_metadata.user_phone_no,
-                        "email" : userDetails.user_metadata.user_email,
-                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
-                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
-                        "is_admin": str(userDetails.user_metadata.is_admin)
-                    }
+                    "full_name" : userDetails.user_metadata.user_name,
+                    "user_alias" : userDetails.user_metadata.user_alias,
+                    "phone_no" : userDetails.user_metadata.user_phone_no,
+                    "email" : userDetails.user_metadata.user_email,
+                    "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
+                    "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
+                    "is_admin": str(userDetails.user_metadata.is_admin)
+                    
                 }
         return jsonify(temp), 200
 
