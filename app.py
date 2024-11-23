@@ -321,19 +321,23 @@ def get_user_details_list(user_uuid):
         # print(resBody)
         return jsonify(resBody), 200
     else:
-        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
-        temp = {
-                    'user_id' : userDetails.user_uuid,
-                    "full_name" : userDetails.user_metadata.user_name,
-                    "user_alias" : userDetails.user_metadata.user_alias,
-                    "phone_no" : userDetails.user_metadata.user_phone_no,
-                    "email" : userDetails.user_metadata.user_email,
-                    "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
-                    "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
-                    "is_admin": str(userDetails.user_metadata.is_admin)
-                    
-                }
-        return jsonify(temp), 200
+        try:
+            userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
+            temp = {
+                        'user_id' : userDetails.user_uuid,
+                        "full_name" : userDetails.user_metadata.user_name,
+                        "user_alias" : userDetails.user_metadata.user_alias,
+                        "phone_no" : userDetails.user_metadata.user_phone_no,
+                        "email" : userDetails.user_metadata.user_email,
+                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
+                        "is_admin": str(userDetails.user_metadata.is_admin)
+                        
+                    }
+            return jsonify(temp), 200
+        except Exception as e:
+            logging.error(e)
+            return jsonify({"message": "User not found"}), 404
 
 @app.route('/delete-user', methods=['DELETE'])
 @jwt_required()
