@@ -323,19 +323,23 @@ def get_user_details_list(user_uuid):
         # print(resBody)
         return jsonify(resBody), 200
     else:
-        userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
-        temp = {
-                    'user_id' : userDetails.user_uuid,
-                    "full_name" : userDetails.user_metadata.user_name,
-                    "user_alias" : userDetails.user_metadata.user_alias,
-                    "phone_no" : userDetails.user_metadata.user_phone_no,
-                    "email" : userDetails.user_metadata.user_email,
-                    "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
-                    "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
-                    "is_admin": str(userDetails.user_metadata.is_admin)
-                    
-                }
-        return jsonify(temp), 200
+        try:
+            userDetails = db_session_ac.query(UserMaster).options(joinedload(UserMaster.user_metadata)).filter_by(user_uuid=user_uuid).first()
+            temp = {
+                        'user_id' : userDetails.user_uuid,
+                        "full_name" : userDetails.user_metadata.user_name,
+                        "user_alias" : userDetails.user_metadata.user_alias,
+                        "phone_no" : userDetails.user_metadata.user_phone_no,
+                        "email" : userDetails.user_metadata.user_email,
+                        "user_login_count" : userDetails.user_metadata.no_of_times_user_login,
+                        "problem_solved_count" : userDetails.user_metadata.no_of_problems_solved,
+                        "is_admin": str(userDetails.user_metadata.is_admin)
+                        
+                    }
+            return jsonify(temp), 200
+        except Exception as e:
+            logging.error(e)
+            return jsonify({"message": "User not found"}), 404
 
 @app.route('/delete-user', methods=['DELETE'])
 @jwt_required()
@@ -346,35 +350,40 @@ def delete_user():
 
     requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_deleted).first()
 
-    if(requester_id == user_to_be_deleted): #user self-delete logic
-        try:
-            db_session_ac.delete(requestedUser)
-            db_session_ac.commit()
-            response = make_response(jsonify({'message': 'User deleted successfully', 'self_delete': 'true'}))
-            
-            refresh_token = request.cookies["refresh_token_cookie"]
-            bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
-            db_session_ac.add(bt)
-            db_session_ac.commit()
-            
-            if environment == "local": 
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
-            else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+    if(requestedUser):
+
+        if(requester_id == user_to_be_deleted): #user self-delete logic
+            try:
+                db_session_ac.delete(requestedUser)
+                db_session_ac.commit()
+                response = make_response(jsonify({'message': 'User deleted successfully', 'self_delete': 'true'}))
                 
-            return response
-        except Exception as e:
-            logging.error(e)
-            return jsonify({'message': 'Cannot delete user, user does not exist'}), 400
+                refresh_token = request.cookies["refresh_token_cookie"]
+                bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
+                db_session_ac.add(bt)
+                db_session_ac.commit()
+                
+                if environment == "local": 
+                    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
+                else:
+                    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+                    
+                return response
+            except Exception as e:
+                logging.error(e)
+                return jsonify({'message': 'Cannot delete user, user does not exist'}), 404
+        
+        else: #admin deletes user logic
+            requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+            if(requesterUser and requesterUser.user_metadata.is_admin):
+                db_session_ac.delete(requestedUser)
+                db_session_ac.commit()
+                return jsonify({'message': 'User deleted successfully', 'self_delete': 'false'}), 200
+            else:
+                return jsonify({'message': 'Cannot delete user, user unauthorized or does not exist'}), 403
     
-    else: #admin deletes user logic
-        requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-        if(requesterUser and requesterUser.user_metadata.is_admin):
-            db_session_ac.delete(requestedUser)
-            db_session_ac.commit()
-            return jsonify({'message': 'User deleted successfully', 'self_delete': 'false'}), 200
-        else:
-            return jsonify({'message': 'Cannot delete user, user unauthorized or does not exist'}), 400
+    else:
+        return jsonify({"message": "User not found"}), 404
 
 @app.route('/edit-user', methods=['PUT'])
 @jwt_required()
@@ -387,42 +396,41 @@ def edit_user():
     requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_edited).first()
     requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
 
-    if(user_to_be_edited == requester_id):
-        try:
-            flag = True
-            for field, model_attr in user_update_fields.items():
-                if field in edit_metadata and edit_metadata.get(field) is not None and flag:
-                    if(field == "is_admin"):
-                        if(requesterUser.user_metadata.is_admin):
-                            setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+    if requestedUser:
+
+        if(user_to_be_edited == requester_id):
+            try:
+                flag = True
+                for field, model_attr in user_update_fields.items():
+                    if field in edit_metadata and edit_metadata.get(field) is not None and flag:
+                        if(field == "is_admin"):
+                            if(requesterUser.user_metadata.is_admin):
+                                setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+                            else:
+                                flag = False
                         else:
-                            flag = False
-                    else:
+                            setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
+                db_session_ac.commit()
+                if(flag):
+                    return jsonify({'message': 'User details edited successfully'}), 200
+                else:
+                    return jsonify({'message': 'Privillege escalation attempted'}), 403
+            except Exception as e:
+                logging.error(e)
+                return jsonify({'message': 'User details cannot be edited'}), 400
+        else:
+            if(requesterUser and requesterUser.user_metadata.is_admin):
+                for field, model_attr in user_update_fields.items():
+                    if field in edit_metadata and edit_metadata.get(field) is not None:
                         setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
-            db_session_ac.commit()
-            if(flag):
+                db_session_ac.commit()
                 return jsonify({'message': 'User details edited successfully'}), 200
             else:
-                return jsonify({'message': 'Privillege escalation attempted'}), 403
-        except Exception as e:
-            logging.error(e)
-            return jsonify({'message': 'User details cannot be edited'}), 400
+                return jsonify({'message': 'Cannot modify user'}), 400
+    
     else:
-        if(requesterUser and requesterUser.user_metadata.is_admin):
-            for field, model_attr in user_update_fields.items():
-                if field in edit_metadata and edit_metadata.get(field) is not None:
-                    setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
-            db_session_ac.commit()
-            return jsonify({'message': 'User details edited successfully'}), 200
-        else:
-            return jsonify({'message': 'Cannot modify user'}), 400
+        return jsonify({'message': 'User not found'}), 404
 
-
-@app.route("/view-user", methods=["GET"])
-@jwt_required()
-def view_user():
-    print(request.headers)
-    return jsonify(1)
 
 # problem end APIs
 
