@@ -46,7 +46,7 @@ class ProblemStatementTestCases(Base):
     __tablename__ = "problem_statement_test_cases"
     test_case_id = Column(Integer, primary_key=True, autoincrement=True)
     problem_statement_id = Column(Integer)
-    language_id = Column(Integer)
+    # language_id = Column(Integer) #not required
     expected_input = Column(String)
     expected_output = Column(String)
     test_case_weightage = Column(Integer)

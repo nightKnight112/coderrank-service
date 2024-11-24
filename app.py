@@ -37,7 +37,9 @@ logging.basicConfig(format="{asctime} - {levelname} - {message}", style="{", dat
 
 # JWT config
 jwt = JWTManager(app)
-jwt_secret_key = os.popen("openssl rand -hex 32").read()
+# print(utils.generate_random_secret_key(32))
+# jwt_secret_key = os.popen("openssl rand -hex 32").read()
+jwt_secret_key = utils.generate_random_secret_key(32)
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=5)
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=30)
@@ -553,6 +555,78 @@ def delete_problem():
             return jsonify({'message' : 'error deleting problem'}), 400
     else:
         return jsonify({'error' : 'You donot have the permission to perform the action'}), 403
+
+#get all test cases for problems
+@app.route('/get-test-cases/<string:requested_problem_uuid>', methods=['GET'])
+def get_test_cases(requested_problem_uuid):
+    problem_data = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_uuid).first()
+    all_test_cases_obj_list = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=problem_data.problem_statement_id).all()
+    res_json = []
+    for ele in all_test_cases_obj_list:
+        temp = {
+            'test_case_id' : ele.test_case_id,
+            'expected_input' :  ele.expected_input,
+            'expected_output' : ele.expected_output,
+            'test_case_weightage' : ele.test_case_weightage,
+            'is_hidden' : ele.is_hidden
+        }
+        res_json.append(temp)
+    return jsonify(res_json), 200
+
+#create test cases for problems
+@app.route('/add-test-cases', methods=['POST'])
+@jwt_required()
+def add_test_cases():
+    '''
+        expected request payload
+        {
+            problem_id : problem_uuid,
+            test_cases : [
+                {
+                    input : '',
+                    output : '',
+                    weightage : '',
+                    hidden : ''
+                }, ...
+            ]
+        }
+    '''
+    data = request.json
+    errorFlag = False
+    problem_uuid = data['problem_id']
+    problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_uuid).first().problem_statement_id
+    test_cases_array = data['test_cases']
+
+    for ele in test_cases_array:
+        tempObj = ProblemStatementTestCases(
+            problem_statement_id=problem_statement_id,
+            expected_input=ele.input,
+            expected_output=ele.output,
+            test_case_weightage=ele.weightage,
+            is_hidden=ele.hidden
+        )
+        try:
+            db_session_ac.add(tempObj)
+            db_session_ac.commit()
+        except Exception as e: 
+            db_session_ac.rollback()
+            errorFlag = True
+    if(errorFlag):
+        return jsonify({ 'message' : 'test cases not added successfully, please check with super admin for more info' }), 400
+    else:
+        return jsonify({'message' : 'added test cases for problem statement successfully'}), 200
+
+#edit test cases for problems
+@app.route('/edit-test-cases', methods=['PUT'])
+@jwt_required()
+def edit_test_cases():
+    return jsonify({}),200
+
+#delete test cases for problems
+@app.route('/delete-test-cases', method=['DELETE'])
+@jwt_required()
+def delete_test_cases():
+    return jsonify({}),200
 
 
 if __name__ == "__main__":

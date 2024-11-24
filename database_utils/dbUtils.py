@@ -17,3 +17,10 @@ problem_update_fields = {
     "hint": "problem_statement_metadata.problem_hint",
     "no_of_test_cases": "problem_statement_metadata.no_of_test_cases"
 }
+
+problem_testcases_update_fields = {
+    "expected_input": "problem_statement_test_cases.expected_input",
+    "expected_output": "problem_statement_test_cases.expected_output",
+    "test_case_weightage": "problem_statement_test_cases.test_case_weightage",
+    "is_hidden": "problem_statement_test_cases.is_hidden",
+}
