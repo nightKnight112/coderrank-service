@@ -100,20 +100,6 @@ CREATE TABLE user_did_problem (
     REFERENCES problem_statement_master(problem_statement_id)
 );
 
--- Table: test_cases_in_language, composite key added due to table mapping constraints
-CREATE TABLE test_cases_in_language (
-  language_id INTEGER NOT NULL,
-  problem_statement_id INTEGER NOT NULL,
-  PRIMARY KEY (language_id, problem_statement_id),
-  CONSTRAINT fk_test_cases_language
-    FOREIGN KEY (language_id)
-    REFERENCES language_info(language_id),
-  CONSTRAINT fk_test_cases_problem
-    FOREIGN KEY (problem_statement_id)
-    REFERENCES problem_statement_master(problem_statement_id)
-);
-
-
 CREATE TABLE public.blacklisted_tokens (
 	id bigserial NOT NULL,
 	blacklisted_token varchar NULL,
