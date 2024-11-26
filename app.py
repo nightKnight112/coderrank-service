@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
 from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases, BlacklistedTokens
 import uuid
-from database_utils.dbUtils import user_update_fields, problem_update_fields
+from database_utils.dbUtils import user_update_fields, problem_update_fields, problem_testcases_update_fields
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
@@ -536,6 +536,7 @@ def edit_problem():
             for field, model_attr in problem_update_fields.items():
                 if field in edit_metadata and edit_metadata.get(field) is not None:
                     setattr(requestedProblem.problem_statement_metadata, model_attr.split('.')[-1], edit_metadata[field])
+            db_session_ac.add(requestedProblem)
             db_session_ac.commit()
             return jsonify({'message': 'problem details edited successfully'}), 200
         except Exception as e:
@@ -628,13 +629,44 @@ def add_test_cases():
 @app.route('/edit-test-cases', methods=['PUT'])
 @jwt_required()
 def edit_test_cases():
-    return jsonify({}),200
+    data = request.json
+    test_case_id = data['test_case_id']
+    requester_id = data['requester_id']
+    edit_metadata = data['edit_metadata']
+    user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+    if(user_obj.user_metadata.is_admin):
+        test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
+        for field, model_attr in problem_testcases_update_fields:
+            if field in edit_metadata and edit_metadata.get(field) is not None:
+                setattr(test_case_obj, model_attr.split('.')[-1], edit_metadata[field])
+        try:
+            db_session_ac.add(test_case_obj)
+            db_session_ac.commit()
+            return jsonify({'message' : 'Test case details edited successfully'}),200
+        except Exception as e:
+            db_session_ac.rollback()
+            return jsonify({'message' : 'Problem editing test case details'}),400
+    else:
+        return jsonify({'message': 'privillege escalation attempted'}), 403
 
 #delete test cases for problems
 @app.route('/delete-test-cases', method=['DELETE'])
 @jwt_required()
 def delete_test_cases():
-    return jsonify({}),200
+    data = request.json
+    test_case_id = data['test_case_id']
+    requester_id = data['requester_id']
+    user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+    if(user_obj.user_metadata.is_admin):
+        test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
+        try:
+            db_session_ac.delete(test_case_obj)
+            db_session_ac.commit()
+            return jsonify({'message' : 'problem test case deleted successfully'}), 200
+        except Exception as e:
+            return jsonify({'message' : 'error deleting problem test case'}), 400
+    else:
+        return jsonify({'message': 'privillege escalation attempted'}), 403
 
 
 if __name__ == "__main__":
