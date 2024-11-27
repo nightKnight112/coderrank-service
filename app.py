@@ -62,6 +62,40 @@ def get_language_options():
     except Exception as e:
         return jsonify({'error' : e}), 400
 
+@app.route('/add-language-options', methods=['POST'])
+def add_language_options():
+    data = request.json
+    user_id = data['user_id']
+    language_options = data['language_options']
+
+    isUserAdmin = db_session_ac.query(UserMaster).filter_by(user_uuid=user_id).first().user_metadata.is_admin
+
+    if(isUserAdmin):
+
+        errorFlag = False
+
+        for ele in language_options:
+            temp_uuid = uuid.uuid4()
+            langObj = LanguageInfo(
+                language_uuid=temp_uuid,
+                language_name=ele.language_name
+            )
+            try:
+                db_session_ac.add(langObj)
+                db_session_ac.commit()
+            except Exception as e:
+                errorFlag = True
+                print(e)
+                break
+        
+        if(errorFlag):
+            return jsonify({'message' : 'failed to add languages'}), 400
+        else:
+            return jsonify({'message' : 'added language info successfully'}), 200
+    else:
+        return jsonify({'message' : 'privillege escalation attempted'}), 403
+
+
 
 @app.route('/execute', methods=['POST'])
 def execute():
@@ -489,6 +523,7 @@ def add_problem():
     problem_statement_duration = data['duration']
     problem_hint = data['hint']
     no_of_test_cases = data['no_of_test_cases']
+    test_case_data = data['test_cases']
 
     allProblems = db_session_ac.query(ProblemStatementMaster).all()
     if(len(allProblems) > 0):
@@ -514,7 +549,31 @@ def add_problem():
     try:
         db_session_ac.add(new_problem_statement_master)
         db_session_ac.commit()
-        return jsonify({'message': 'problem stored successfully'}), 200
+        if(test_case_data):
+            errorFlag = False
+            problem_uuid = problem_statement_uuid
+            problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_uuid).first().problem_statement_id
+
+            for ele in test_case_data:
+                tempObj = ProblemStatementTestCases(
+                    problem_statement_id=problem_statement_id,
+                    expected_input=ele.input,
+                    expected_output=ele.output,
+                    test_case_weightage=ele.weightage,
+                    is_hidden=ele.hidden
+                )
+                try:
+                    db_session_ac.add(tempObj)
+                    db_session_ac.commit()
+                except Exception as e: 
+                    db_session_ac.rollback()
+                    errorFlag = True
+            if(errorFlag):
+                return jsonify({ 'message' : 'test cases not added successfully, please check with super admin for more info' }), 400
+            else:
+                return jsonify({'message' : 'added problem and test cases for problem successfully'}), 200
+        else:
+            return jsonify({'message': 'problem stored successfully'}), 200
     except Exception as e:
         db_session_ac.rollback()
         return jsonify({'error': e}), 500
@@ -650,7 +709,7 @@ def edit_test_cases():
         return jsonify({'message': 'privillege escalation attempted'}), 403
 
 #delete test cases for problems
-@app.route('/delete-test-cases', method=['DELETE'])
+@app.route('/delete-test-cases', methods=['DELETE'])
 @jwt_required()
 def delete_test_cases():
     data = request.json
