@@ -14,7 +14,6 @@ problem_update_fields = {
     "sample_input": "problem_statement_metadata.sample_input",
     "sample_output": "problem_statement_metadata.sample_output",
     "duration": "problem_statement_metadata.problem_duration",
-    "hint": "problem_statement_metadata.problem_hint",
     "no_of_test_cases": "problem_statement_metadata.no_of_test_cases"
 }
 

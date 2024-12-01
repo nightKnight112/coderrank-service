@@ -45,12 +45,13 @@ class ProblemStatementTestCases(Base):
 
     __tablename__ = "problem_statement_test_cases"
     test_case_id = Column(Integer, primary_key=True, autoincrement=True)
-    problem_statement_id = Column(Integer)
-    # language_id = Column(Integer) #not required
-    expected_input = Column(String)
+    problem_statement_id = Column(Integer, ForeignKey('problem_statement_master.problem_statement_id'))
+    input = Column(String)
     expected_output = Column(String)
     test_case_weightage = Column(Integer)
     is_hidden = Column(Boolean)
+
+    problem_statement_master = relationship("ProblemStatementMaster", back_populates="problem_statement_test_cases")
 
 class ProblemStatementMaster(Base):
 
@@ -58,19 +59,21 @@ class ProblemStatementMaster(Base):
 
     problem_statement_id = Column(Integer, primary_key=True, autoincrement=True)
     problem_statement_uuid = Column(String)
+    
     problem_statement_metadata = relationship("ProblemStatementMetadata", back_populates="problem_statement_master", uselist=False, cascade="all, delete")
+
+    problem_statement_test_cases = relationship("ProblemStatementTestCases", back_populates="problem_statement_master", cascade="all, delete")
 
 class ProblemStatementMetadata(Base):
 
     __tablename__ = "problem_statement_metadata"
 
     problem_statement_id = Column(Integer, ForeignKey('problem_statement_master.problem_statement_id'), primary_key=True, autoincrement=True)
+    problem_statement_title = Column(String)
     problem_statement_body = Column(Text)
-    sample_input = Column(String)
-    sample_output = Column(String)
-    problem_duration = Column(Integer)
-    problem_hint = Column(Text)
-    no_of_test_cases = Column(Integer)
+    problem_statement_duration = Column(Integer)
+    problem_statement_difficulty = Column(String)
+    problem_statement_tags = Column(Text)
 
     problem_statement_master = relationship("ProblemStatementMaster", back_populates="problem_statement_metadata")
 

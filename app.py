@@ -470,113 +470,142 @@ def edit_user():
 
 @app.route('/get-problem-list/',defaults={'problem_id': None}, methods=['GET'])
 @app.route('/get-problem-list/<string:problem_id>',  methods=['GET'])
-@jwt_required()
 def get_problem_list(problem_id):
+    try:
+        # to fetch details of a problem
+        if(problem_id):
+            headers = dict(request.headers)
+            if "Authorization" in headers:
+                response = {}
+                problem_statement_obj = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
 
-    if(problem_id):
-        allProblemList = []
+                user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
+                user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
 
-        allProblemObject = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
-        allProblemList = [{
-            "problem_statement_id" : allProblemObject.problem_statement_uuid,
-                "metadata" : {
-                    "question" : allProblemObject.problem_statement_metadata.problem_statement_body,
-                    "sample_input" : allProblemObject.problem_statement_metadata.sample_input,
-                    "sample_output" : allProblemObject.problem_statement_metadata.sample_output,
-                    "duration" : allProblemObject.problem_statement_metadata.problem_duration,
-                    "hints" : allProblemObject.problem_statement_metadata.problem_hint,
-                    "no_of_test_cases" : allProblemObject.problem_statement_metadata.no_of_test_cases
+                # to show test cases only for admin
+                if user_obj and user_obj.user_metadata.is_admin:
+                    response = {
+                        "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
+                        "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
+                        "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
+                        "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
+                        "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
+                        "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
+                    }
+
+                    test_cases_list = []
+                    for i in problem_statement_obj.problem_statement_test_cases:
+                        temp = {
+                            "test_case_id": i.test_case_id,
+                            "input": i.input,
+                            "expected_output": i.expected_output,
+                            "test_case_weightage": i.test_case_weightage,
+                            "is_hidden": i.is_hidden
+                        }
+                        test_cases_list.append(temp)
+                    
+                    response["metadata"]["test_cases"] = test_cases_list
+            
+                # to fetch problem details
+                else:
+                    response = {
+                        "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
+                        "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
+                        "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
+                        "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
+                        "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
+                        "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
+                    }
+            
+            else:
+                return jsonify({"message": "You are unauthorized to perform this action"}), 403
+            
+            return jsonify(response)
+
+        # to fetch problem list
+        else:
+            allProblemList = []
+            allProblemObject = db_session_ac.query(ProblemStatementMaster).all()
+
+            for problems in allProblemObject:
+                temp = {
+                    "problem_statement_uuid" : problems.problem_statement_uuid,
+                    "problem_statement_title" : problems.problem_statement_metadata.problem_statement_title,
+                    "problem_statement_body" : problems.problem_statement_metadata.problem_statement_body,
+                    "problem_statement_duration" : problems.problem_statement_metadata.problem_statement_duration,
+                    "problem_statement_tags": problems.problem_statement_metadata.problem_statement_tags,
+                    "problem_statement_difficulty": problems.problem_statement_metadata.problem_statement_difficulty
                 }
-        }]
-        return jsonify(allProblemList), 200
 
-    else:
-        allProblemList = []
-
-        allProblemObject = db_session_ac.query(ProblemStatementMaster).all()
-
-        for problems in allProblemObject:
-            temp = {
-                "problem_statement_id" : problems.problem_statement_uuid,
-                "metadata" : {
-                    "question" : problems.problem_statement_metadata.problem_statement_body,
-                    "sample_input" : problems.problem_statement_metadata.sample_input,
-                    "sample_output" : problems.problem_statement_metadata.sample_output,
-                    "duration" : problems.problem_statement_metadata.problem_duration,
-                    "hints" : problems.problem_statement_metadata.problem_hint,
-                    "no_of_test_cases" : problems.problem_statement_metadata.no_of_test_cases
-                }
-            }
-
-            allProblemList.append(temp)
-        
-        return jsonify(allProblemList), 200
+                allProblemList.append(temp)
+            
+            return jsonify(allProblemList)
+    
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
 
 @app.route('/add-problem', methods=['POST'])
 @jwt_required()
 def add_problem():
     data = request.json
     problem_statement_uuid = uuid.uuid4()
-    problem_statement_body = data['statement_body']
-    sample_input = data['sample_input']
-    sample_output = data['sample_output']
-    problem_statement_duration = data['duration']
-    problem_hint = data['hint']
-    no_of_test_cases = data['no_of_test_cases']
+    problem_statement_title = data['problem_statement_title']
+    problem_statement_body = data['problem_statement_body']
+    problem_statement_duration = data['problem_statement_duration']
+    problem_statement_duration = data['problem_statement_duration']
+    problem_statement_difficulty = data['problem_statement_difficulty']
+    problem_statement_tags = data['problem_statement_tags']
     test_case_data = data['test_cases']
 
-    allProblems = db_session_ac.query(ProblemStatementMaster).all()
-    if(len(allProblems) > 0):
-        last_given_problem_id = allProblems[len(allProblems)-1].problem_statement_id
-        last_given_problem_id += 1
-    else:
-        last_given_problem_id = 1
-
     new_problem_statement_master = ProblemStatementMaster(
-        problem_statement_id= last_given_problem_id,
         problem_statement_uuid = problem_statement_uuid,
         problem_statement_metadata = ProblemStatementMetadata(
-            problem_statement_id = last_given_problem_id,
+            problem_statement_title = problem_statement_title,
             problem_statement_body= problem_statement_body,
-            sample_input=sample_input,
-            sample_output=sample_output,
-            problem_duration = problem_statement_duration,
-            problem_hint = problem_hint,
-            no_of_test_cases = no_of_test_cases
+            problem_statement_duration = problem_statement_duration,
+            problem_statement_difficulty = problem_statement_difficulty,
+            problem_statement_tags = problem_statement_tags
         )
     )
 
     try:
         db_session_ac.add(new_problem_statement_master)
         db_session_ac.commit()
+
         if(test_case_data):
             errorFlag = False
-            problem_uuid = problem_statement_uuid
-            problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_uuid).first().problem_statement_id
+
+            problem_statement_id = new_problem_statement_master.problem_statement_id
 
             for ele in test_case_data:
                 tempObj = ProblemStatementTestCases(
                     problem_statement_id=problem_statement_id,
-                    expected_input=ele.input,
-                    expected_output=ele.output,
-                    test_case_weightage=ele.weightage,
-                    is_hidden=ele.hidden
+                    input=ele["input"],
+                    expected_output=ele["expected_output"],
+                    test_case_weightage=ele["test_case_weightage"],
+                    is_hidden=ele["is_hidden"]
                 )
                 try:
                     db_session_ac.add(tempObj)
                     db_session_ac.commit()
                 except Exception as e: 
+                    logging.error(e)
                     db_session_ac.rollback()
                     errorFlag = True
+            
             if(errorFlag):
-                return jsonify({ 'message' : 'test cases not added successfully, please check with super admin for more info' }), 400
+                return jsonify({ 'message' : 'Something went wrong' }), 500
             else:
-                return jsonify({'message' : 'added problem and test cases for problem successfully'}), 200
+                return jsonify({'message' : 'Problem statement added successfully'})
+        
         else:
-            return jsonify({'message': 'problem stored successfully'}), 200
+            return jsonify({'message': 'Problem statement added successfully'})
+    
     except Exception as e:
+        logging.error(e)
         db_session_ac.rollback()
-        return jsonify({'error': e}), 500
+        return jsonify({'message': "Something went wrong"}), 500
 
 
 @app.route('/edit-problem', methods=['PUT'])
@@ -584,24 +613,57 @@ def add_problem():
 def edit_problem():
     data = request.json
     problem_to_be_edited = data['problem_to_be_edited']
-    requester_id = data['requester_user_id']
+    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
     edit_metadata = data['edit_metadata']
 
     requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
 
-    if(requesterUser.user_metadata.is_admin):
-        requestedProblem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_to_be_edited).first()
+    if(requesterUser and requesterUser.user_metadata.is_admin):
+        requested_problem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_to_be_edited).first()
+
         try:
-            for field, model_attr in problem_update_fields.items():
-                if field in edit_metadata and edit_metadata.get(field) is not None:
-                    setattr(requestedProblem.problem_statement_metadata, model_attr.split('.')[-1], edit_metadata[field])
-            db_session_ac.add(requestedProblem)
+            requested_problem.problem_statement_metadata.problem_statement_title = edit_metadata["problem_statement_title"]
+            requested_problem.problem_statement_metadata.problem_statement_body = edit_metadata["problem_statement_body"]
+            requested_problem.problem_statement_metadata.problem_statement_duration = edit_metadata["problem_statement_duration"]
+            requested_problem.problem_statement_metadata.problem_statement_difficulty = edit_metadata["problem_statement_difficulty"]
+            requested_problem.problem_statement_metadata.problem_statement_tags = edit_metadata["problem_statement_tags"]
+
+
+            requested_problem_test_cases = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=requested_problem.problem_statement_id).all()
+
+            for i in edit_metadata["test_cases"]:
+                # for new test cases
+                if i["test_case_id"] == "":
+                    new_test_case = ProblemStatementTestCases(problem_statement_id=requested_problem.problem_statement_id,
+                                                              input=i["input"],
+                                                              expected_output=i["expected_output"],
+                                                              test_case_weightage=i["test_case_weightage"],
+                                                              is_hidden=i["is_hidden"])
+                    
+                    db_session_ac.add(new_test_case)
+                
+                # for existing test cases
+                else:
+                    for j in requested_problem_test_cases:
+                        if i["test_case_id"] == j.test_case_id:
+                            j.input = i["input"]
+                            j.expected_output = i["expected_output"]
+                            j.test_case_weightage = i["test_case_weightage"]
+                            j.is_hidden = i["is_hidden"]
+
+                            break
+
             db_session_ac.commit()
-            return jsonify({'message': 'problem details edited successfully'}), 200
+            return jsonify({"message": "Problem statement updated successfully"})
+            
+                    
         except Exception as e:
-            return jsonify({'error': 'problem details cannot be edited'}), 400
+            logging.error(e)
+            db_session_ac.rollback()
+            return jsonify({'message': 'Something went wrong'}), 500
+        
     else:
-        return jsonify({'error' : 'You donot have the permission to perform the action'}), 403
+        return jsonify({'message' : 'You are unauthorized to perform the action'}), 403
 
 
 
@@ -610,122 +672,122 @@ def edit_problem():
 def delete_problem():
     data = request.json
     requested_problem_id = data['requested_problem_id']
-    requester_user_id = data['requester_user_id']
+    requester_user_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
 
     requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_user_id).first()
-    if(requesterUser.user_metadata.is_admin):
+    if(requesterUser and requesterUser.user_metadata.is_admin):
         requestedProblem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_id).first()
         try:
             db_session_ac.delete(requestedProblem)
             db_session_ac.commit()
-            return jsonify({'message' : 'problem deleted successfully'}), 200
+            return jsonify({'message' : 'Problem statement deleted successfully'})
         except Exception as e:
-            return jsonify({'message' : 'error deleting problem'}), 400
+            return jsonify({'message' : 'Something went wrong'}), 500
     else:
-        return jsonify({'error' : 'You donot have the permission to perform the action'}), 403
+        return jsonify({'message' : 'You are unauthorized to perform the action'}), 403
 
 #get all test cases for problems
-@app.route('/get-test-cases/<string:requested_problem_uuid>', methods=['GET'])
-def get_test_cases(requested_problem_uuid):
-    problem_data = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_uuid).first()
-    all_test_cases_obj_list = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=problem_data.problem_statement_id).all()
-    res_json = []
-    for ele in all_test_cases_obj_list:
-        temp = {
-            'test_case_id' : ele.test_case_id,
-            'expected_input' :  ele.expected_input,
-            'expected_output' : ele.expected_output,
-            'test_case_weightage' : ele.test_case_weightage,
-            'is_hidden' : ele.is_hidden
-        }
-        res_json.append(temp)
-    return jsonify(res_json), 200
+# @app.route('/get-test-cases/<string:requested_problem_uuid>', methods=['GET'])
+# def get_test_cases(requested_problem_uuid):
+#     problem_data = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_uuid).first()
+#     all_test_cases_obj_list = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=problem_data.problem_statement_id).all()
+#     res_json = []
+#     for ele in all_test_cases_obj_list:
+#         temp = {
+#             'test_case_id' : ele.test_case_id,
+#             'expected_input' :  ele.expected_input,
+#             'expected_output' : ele.expected_output,
+#             'test_case_weightage' : ele.test_case_weightage,
+#             'is_hidden' : ele.is_hidden
+#         }
+#         res_json.append(temp)
+#     return jsonify(res_json), 200
 
-#create test cases for problems
-@app.route('/add-test-cases', methods=['POST'])
-@jwt_required()
-def add_test_cases():
-    '''
-        expected request payload
-        {
-            problem_id : problem_uuid,
-            test_cases : [
-                {
-                    input : '',
-                    output : '',
-                    weightage : '',
-                    hidden : ''
-                }, ...
-            ]
-        }
-    '''
-    data = request.json
-    errorFlag = False
-    problem_uuid = data['problem_id']
-    problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_uuid).first().problem_statement_id
-    test_cases_array = data['test_cases']
+# #create test cases for problems
+# @app.route('/add-test-cases', methods=['POST'])
+# @jwt_required()
+# def add_test_cases():
+#     '''
+#         expected request payload
+#         {
+#             problem_id : problem_uuid,
+#             test_cases : [
+#                 {
+#                     input : '',
+#                     output : '',
+#                     weightage : '',
+#                     hidden : ''
+#                 }, ...
+#             ]
+#         }
+#     '''
+#     data = request.json
+#     errorFlag = False
+#     problem_uuid = data['problem_id']
+#     problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_uuid).first().problem_statement_id
+#     test_cases_array = data['test_cases']
 
-    for ele in test_cases_array:
-        tempObj = ProblemStatementTestCases(
-            problem_statement_id=problem_statement_id,
-            expected_input=ele.input,
-            expected_output=ele.output,
-            test_case_weightage=ele.weightage,
-            is_hidden=ele.hidden
-        )
-        try:
-            db_session_ac.add(tempObj)
-            db_session_ac.commit()
-        except Exception as e: 
-            db_session_ac.rollback()
-            errorFlag = True
-    if(errorFlag):
-        return jsonify({ 'message' : 'test cases not added successfully, please check with super admin for more info' }), 400
-    else:
-        return jsonify({'message' : 'added test cases for problem statement successfully'}), 200
+#     for ele in test_cases_array:
+#         tempObj = ProblemStatementTestCases(
+#             problem_statement_id=problem_statement_id,
+#             expected_input=ele.input,
+#             expected_output=ele.output,
+#             test_case_weightage=ele.weightage,
+#             is_hidden=ele.hidden
+#         )
+#         try:
+#             db_session_ac.add(tempObj)
+#             db_session_ac.commit()
+#         except Exception as e: 
+#             db_session_ac.rollback()
+#             errorFlag = True
+#     if(errorFlag):
+#         return jsonify({ 'message' : 'test cases not added successfully, please check with super admin for more info' }), 400
+#     else:
+#         return jsonify({'message' : 'added test cases for problem statement successfully'}), 200
 
 #edit test cases for problems
-@app.route('/edit-test-cases', methods=['PUT'])
-@jwt_required()
-def edit_test_cases():
-    data = request.json
-    test_case_id = data['test_case_id']
-    requester_id = data['requester_id']
-    edit_metadata = data['edit_metadata']
-    user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-    if(user_obj.user_metadata.is_admin):
-        test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
-        for field, model_attr in problem_testcases_update_fields:
-            if field in edit_metadata and edit_metadata.get(field) is not None:
-                setattr(test_case_obj, model_attr.split('.')[-1], edit_metadata[field])
-        try:
-            db_session_ac.add(test_case_obj)
-            db_session_ac.commit()
-            return jsonify({'message' : 'Test case details edited successfully'}),200
-        except Exception as e:
-            db_session_ac.rollback()
-            return jsonify({'message' : 'Problem editing test case details'}),400
-    else:
-        return jsonify({'message': 'privillege escalation attempted'}), 403
+# @app.route('/edit-test-cases', methods=['PUT'])
+# @jwt_required()
+# def edit_test_cases():
+#     data = request.json
+#     test_case_id = data['test_case_id']
+#     requester_id = data['requester_id']
+#     edit_metadata = data['edit_metadata']
+#     user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
+#     if(user_obj.user_metadata.is_admin):
+#         test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
+#         for field, model_attr in problem_testcases_update_fields:
+#             if field in edit_metadata and edit_metadata.get(field) is not None:
+#                 setattr(test_case_obj, model_attr.split('.')[-1], edit_metadata[field])
+#         try:
+#             db_session_ac.add(test_case_obj)
+#             db_session_ac.commit()
+#             return jsonify({'message' : 'Test case details edited successfully'}),200
+#         except Exception as e:
+#             db_session_ac.rollback()
+#             return jsonify({'message' : 'Problem editing test case details'}),400
+#     else:
+#         return jsonify({'message': 'privillege escalation attempted'}), 403
 
 #delete test cases for problems
-@app.route('/delete-test-cases', methods=['DELETE'])
+@app.route('/delete-test-case', methods=['DELETE'])
 @jwt_required()
 def delete_test_cases():
     data = request.json
     test_case_id = data['test_case_id']
-    requester_id = data['requester_id']
+    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
     user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-    if(user_obj.user_metadata.is_admin):
+    if(user_obj and user_obj.user_metadata.is_admin):
         test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
         try:
             db_session_ac.delete(test_case_obj)
             db_session_ac.commit()
-            return jsonify({'message' : 'problem test case deleted successfully'}), 200
+            return jsonify({'message' : 'Test case deleted successfully'}), 200
         except Exception as e:
-            return jsonify({'message' : 'error deleting problem test case'}), 400
+            return jsonify({'message' : 'Something went wrong'}), 500
     else:
-        return jsonify({'message': 'privillege escalation attempted'}), 403
+        return jsonify({'message': 'You are unauthorized to perform this action'}), 403
 
 
 if __name__ == "__main__":
