@@ -41,7 +41,7 @@ jwt = JWTManager(app)
 # jwt_secret_key = os.popen("openssl rand -hex 32").read()
 jwt_secret_key = utils.generate_random_secret_key(32)
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=5)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=30)
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
 app.config['JWT_COOKIE_CSRF_PROTECT'] = False
@@ -468,58 +468,63 @@ def edit_user():
 
 # problem end APIs
 
-@app.route('/get-problem-list/',defaults={'problem_id': None}, methods=['GET'])
+@app.route("/get-problem-details/<string:problem_id>", methods=["GET"])
+@jwt_required()
+def get_problem_details(problem_id):
+    try:
+        user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
+        user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
+
+        if user_obj.user_metadata.is_admin:
+            problem_statement_obj = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
+            response = {
+                "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
+                "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
+                "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
+                "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
+                "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
+                "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
+            }
+
+            test_cases = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=problem_statement_obj.problem_statement_id).all()
+
+            temp_list = []
+            for i in test_cases:
+                temp = {
+                    "test_case_id": i.test_case_id,
+                    "input": i.input,
+                    "expected_output": i.expected_output,
+                    "test_case_weightage": i.test_case_weightage,
+                    "is_hidden": i.is_hidden,
+                }
+                temp_list.append(temp)
+
+            response["test_cases"] = temp_list
+
+            return jsonify(response)
+        else:
+            return jsonify({"message": "You are unauthorized to perform this action"}), 403
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+@app.route('/get-problem-list/', defaults={"problem_id": None}, methods=['GET'])
 @app.route('/get-problem-list/<string:problem_id>',  methods=['GET'])
 def get_problem_list(problem_id):
     try:
         # to fetch details of a problem
         if(problem_id):
-            headers = dict(request.headers)
-            if "Authorization" in headers:
-                response = {}
-                problem_statement_obj = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
-
-                user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
-                user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
-
-                # to show test cases only for admin
-                if user_obj and user_obj.user_metadata.is_admin:
-                    response = {
-                        "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
-                        "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
-                        "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
-                        "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
-                        "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
-                        "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
-                    }
-
-                    test_cases_list = []
-                    for i in problem_statement_obj.problem_statement_test_cases:
-                        temp = {
-                            "test_case_id": i.test_case_id,
-                            "input": i.input,
-                            "expected_output": i.expected_output,
-                            "test_case_weightage": i.test_case_weightage,
-                            "is_hidden": i.is_hidden
-                        }
-                        test_cases_list.append(temp)
-                    
-                    response["metadata"]["test_cases"] = test_cases_list
-            
-                # to fetch problem details
-                else:
-                    response = {
-                        "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
-                        "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
-                        "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
-                        "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
-                        "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
-                        "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
-                    }
-            
-            else:
-                return jsonify({"message": "You are unauthorized to perform this action"}), 403
-            
+            response = {}
+            problem_statement_obj = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
+            response = {
+                "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
+                "problem_statement_title" : problem_statement_obj.problem_statement_metadata.problem_statement_title,
+                "problem_statement_body" : problem_statement_obj.problem_statement_metadata.problem_statement_body,
+                "problem_statement_duration" : problem_statement_obj.problem_statement_metadata.problem_statement_duration,
+                "problem_statement_tags": problem_statement_obj.problem_statement_metadata.problem_statement_tags,
+                "problem_statement_difficulty": problem_statement_obj.problem_statement_metadata.problem_statement_difficulty
+            }
+        
             return jsonify(response)
 
         # to fetch problem list
@@ -552,7 +557,6 @@ def add_problem():
     problem_statement_uuid = uuid.uuid4()
     problem_statement_title = data['problem_statement_title']
     problem_statement_body = data['problem_statement_body']
-    problem_statement_duration = data['problem_statement_duration']
     problem_statement_duration = data['problem_statement_duration']
     problem_statement_difficulty = data['problem_statement_difficulty']
     problem_statement_tags = data['problem_statement_tags']
