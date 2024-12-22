@@ -86,13 +86,20 @@ CREATE TABLE user_metadata (
 CREATE TABLE user_did_problem (
   user_id INTEGER NOT NULL,
   problem_statement_id INTEGER NOT NULL,
-  PRIMARY KEY (user_id, problem_statement_id),
+  code TEXT NOT NULL,
+  test_cases_passed INTEGER NOT NULL,
+  total_test_cases INTEGER NOT NULL,
+  language_id INTEGER NOT NULL,
+  PRIMARY KEY (user_id, problem_statement_id, language_id),
   CONSTRAINT fk_user_did_problem_user
     FOREIGN KEY (user_id)
     REFERENCES user_master(user_id),
   CONSTRAINT fk_user_did_problem_problem
     FOREIGN KEY (problem_statement_id)
-    REFERENCES problem_statement_master(problem_statement_id)
+    REFERENCES problem_statement_master(problem_statement_id),
+  CONSTRAINT fk_user_did_problem_language_info
+    FOREIGN KEY (language_id)
+    REFERENCES language_info(language_id)
 );
 
 CREATE TABLE public.blacklisted_tokens (

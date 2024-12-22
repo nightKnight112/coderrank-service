@@ -28,18 +28,25 @@ class UserMaster(Base):
 
     user_metadata = relationship("UserMetadata", back_populates="user_master", uselist=False, cascade="all, delete")
 
-class UserDidProblem(Base):
-    __tablename__ = "user_did_problem"
-
-    user_id = Column(Integer, primary_key=True)
-    problem_statement_id = Column(Integer)
-
 class LanguageInfo(Base):
     __tablename__ = "language_info"
 
     language_id = Column(Integer, primary_key=True, autoincrement=True)
-    language_uuid = Column(String)
     language_name = Column(String)
+
+    user_did_problem = relationship("UserDidProblem", back_populates="language_info", uselist=False, cascade="all, delete")
+
+class UserDidProblem(Base):
+    __tablename__ = "user_did_problem"
+
+    user_id = Column(Integer, primary_key=True)
+    problem_statement_id = Column(Integer, primary_key=True)
+    language_id = Column(Integer, ForeignKey('language_info.language_id'), primary_key=True)
+    code = Column(String, nullable=False)
+    test_cases_passed = Column(Integer, nullable=False)
+    total_test_cases = Column(Integer, nullable=False)
+
+    language_info = relationship("LanguageInfo", back_populates="user_did_problem")
 
 class ProblemStatementTestCases(Base):
 

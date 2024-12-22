@@ -4,7 +4,7 @@ import subprocess
 import docker
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, joinedload
-from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases, BlacklistedTokens
+from database_utils.models import LanguageInfo, UserMetadata, UserMaster, ProblemStatementMaster, ProblemStatementMetadata, ProblemStatementTestCases, BlacklistedTokens, UserDidProblem
 import uuid
 from database_utils.dbUtils import user_update_fields, problem_update_fields, problem_testcases_update_fields
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -54,8 +54,8 @@ def get_language_options():
         return_body = []
         for items in languages:
             temp = {
+                "language_id": items.language_id,
                 "language_name" : items.language_name,
-                "language_uuid" : items.language_uuid
             }
             return_body.append(temp)
         return jsonify(return_body), 200
@@ -77,7 +77,6 @@ def add_language_options():
         for ele in language_options:
             temp_uuid = uuid.uuid4()
             langObj = LanguageInfo(
-                language_uuid=temp_uuid,
                 language_name=ele.language_name
             )
             try:
@@ -97,29 +96,45 @@ def add_language_options():
 
 
 
-@app.route('/execute', methods=['POST'])
-def execute():
-    data = request.get_json()
-    language_name = data["language_name"]
-    code = data["code"]
-    input = data["input"]
-
+def execute(language_name, code, input, user_uuid):
     output = ""
-    
-    with open("/home/codes/input.txt", "w") as f:
+
+    os.makedirs(os.path.dirname(f"/home/codes/{user_uuid}/"), exist_ok=True)
+    with open(f"/home/codes/{user_uuid}/input.txt", "w") as f:
         f.write(input)
 
     if language_name == "Java":
-        with open("/home/codes/Solution.java", "w") as f:
+        with open(f"/home/codes/{user_uuid}/Solution.java", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": "/home/codes/Solution.java", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/Solution.java", "input_filename": f"/home/codes/${user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
     else:
-        with open("/home/codes/solution.py", "w") as f:
+        with open(f"/home/codes/{user_uuid}/solution.py", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": "/home/codes/solution.py", "input_filename": "/home/codes/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
     
+    return output
+
+@app.route("/run-code", methods=["POST"])
+def run_code():
+    data = request.get_json()
+    language_id = data["language_id"]
+    code = data["code"]
+    input = data["input"]
+    user_uuid = ""
+    if "refresh_token_cookie" in request.cookies:
+        user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
+    elif "guest_id" in data:
+        user_uuid = f"guest_{data['guest_id']}"
+    else:
+        logging.error("Bad Request, couldn't fetch uuid")
+        return jsonify({"message": "No uuid found"}), 400
+    
+    language_name = db_session_ac.query(LanguageInfo).filter_by(language_id=language_id).first().language_name
+
+    output = execute(language_name, code, input, user_uuid)
+
     return jsonify(output)
 
 # code execution through docker exec
@@ -182,7 +197,104 @@ def execute_code():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/submit-code", methods=["POST"])
+@jwt_required()
+def submit_code():
+    data = request.json
+    language_id = data["language_id"]
+    code = data["code"]
+    problem_statement_uuid = data["problem_statement_id"]
+    user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], secret=jwt_secret_key)["user_uuid"]
+
+    # fetching all necessary data for code execution
+    language_name = db_session_ac.query(LanguageInfo).filter_by(language_id=language_id).first().language_name
+
+    problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_statement_uuid).first().problem_statement_id
+
+    test_cases_list = db_session_ac.query(ProblemStatementTestCases).filter_by(problem_statement_id=problem_statement_id).all()
+
+    total_test_cases = len(test_cases_list)
+    test_cases_passed = 0
+    hidden_test_cases_count = 0
+
+    response = {"test_cases": []}
+
+    # executing code and storing results
+    for i in test_cases_list:
+        temp = {}
+        flag = False
+        result = execute(language_name, code, i.input, user_uuid)
+
+        if result["output"] == i.expected_output:
+            test_cases_passed += 1
+            flag = True
+
+        if not i.is_hidden:
+            temp["input"] = i.input
+            temp["output"] = result["output"]
+            temp["expected_output"] = i.expected_output
+            temp["passed"] = flag
+            response["test_cases"].append(temp)
+        else:
+            hidden_test_cases_count += 1
+        
+
+    response["test_cases_passed"] = test_cases_passed
+    response["total_test_cases"] = total_test_cases
+    response["hidden_test_cases_count"] = hidden_test_cases_count
+
+    user_id = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first().user_id
+    user_did_problem_obj = db_session_ac.query(UserDidProblem).filter_by(user_id=user_id, problem_statement_id=problem_statement_id, language_id=language_id).first()
+
+    # logic for user's tracking for problem statement
+    try:
+        if user_did_problem_obj:
+            if user_did_problem_obj.test_cases_passed <= test_cases_passed:
+                user_did_problem_obj.code = code
+                user_did_problem_obj.test_cases_passed = test_cases_passed
+                user_did_problem_obj.total_test_cases = total_test_cases
+
+                db_session_ac.commit()
+        else:
+            new_user_did_problem_obj = UserDidProblem(user_id=user_id, problem_statement_id=problem_statement_id, language_id=language_id, code=code, total_test_cases=total_test_cases, test_cases_passed=test_cases_passed)
+
+            db_session_ac.add(new_user_did_problem_obj)
+            db_session_ac.commit()
+        
+        return jsonify(response)
     
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+@app.route("/get-users-code/<int:language_id>/<string:problem_statement_uuid>", methods=["GET"])
+@jwt_required()
+def get_users_code(language_id, problem_statement_uuid):
+    try:
+        user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], secret=jwt_secret_key)["user_uuid"]
+        user_id = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first().user_id
+        problem_statement_id = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_statement_uuid).first().problem_statement_id
+
+        response = {}
+        user_did_problem_obj = db_session_ac.query(UserDidProblem).filter_by(user_id=user_id, problem_statement_id=problem_statement_id, language_id=language_id).first()
+
+        if user_did_problem_obj:
+            response["code"] = user_did_problem_obj.code
+        else:
+            response["code"] = ""
+        
+        return jsonify(response)
+    except Exception as e:
+        logging.error(e)
+        return jsonify({"message": "Something went wrong"})
+    
+
+
+@app.route('/generate-guest-id', methods=['GET'])
+def generate_guest_id():
+    guest_id = uuid.uuid4()
+    return jsonify({"guest_id": guest_id})
 
 #user-end apis
 @app.route('/login-user', methods=['POST'])
@@ -304,6 +416,18 @@ def logout():
     except Exception as e:
         logging.error(e)
         return jsonify({"message": "Something went wrong"}), 500
+    
+@app.route("/verify-admin")
+@jwt_required()
+def verify_admin():
+    token = request.headers['Authorization'].split()[1]
+    user_uuid = utils.decode_token(token, secret=jwt_secret_key)["user_uuid"]
+
+    is_admin = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first().user_metadata.is_admin
+    
+    return jsonify({
+        "is_admin": is_admin
+    })
 
 @app.route("/get-user-data", methods=['GET'])
 @jwt_required()
@@ -409,7 +533,8 @@ def delete_user():
         
         else: #admin deletes user logic
             requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-            if(requesterUser and requesterUser.user_metadata.is_admin):
+            is_admin = utils.check_is_admin(request.headers)
+            if(requesterUser and is_admin):
                 db_session_ac.delete(requestedUser)
                 db_session_ac.commit()
                 return jsonify({'message': 'User deleted successfully', 'self_delete': 'false'}), 200
@@ -428,7 +553,6 @@ def edit_user():
     edit_metadata = data['edit_metadata']
 
     requestedUser = db_session_ac.query(UserMaster).filter_by(user_uuid=user_to_be_edited).first()
-    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
 
     if requestedUser:
 
@@ -438,7 +562,7 @@ def edit_user():
                 for field, model_attr in user_update_fields.items():
                     if field in edit_metadata and edit_metadata.get(field) is not None and flag:
                         if(field == "is_admin"):
-                            if(requesterUser.user_metadata.is_admin):
+                            if(utils.check_is_admin(request.headers)):
                                 setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
                             else:
                                 flag = False
@@ -453,7 +577,7 @@ def edit_user():
                 logging.error(e)
                 return jsonify({'message': 'User details cannot be edited'}), 400
         else:
-            if(requesterUser and requesterUser.user_metadata.is_admin):
+            if(utils.check_is_admin(request.headers)):
                 for field, model_attr in user_update_fields.items():
                     if field in edit_metadata and edit_metadata.get(field) is not None:
                         setattr(requestedUser.user_metadata, model_attr.split('.')[-1], edit_metadata[field])
@@ -472,10 +596,7 @@ def edit_user():
 @jwt_required()
 def get_problem_details(problem_id):
     try:
-        user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
-        user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=user_uuid).first()
-
-        if user_obj.user_metadata.is_admin:
+        if utils.check_is_admin(request.headers):
             problem_statement_obj = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_id).first()
             response = {
                 "problem_statement_uuid" : problem_statement_obj.problem_statement_uuid,
@@ -617,12 +738,9 @@ def add_problem():
 def edit_problem():
     data = request.json
     problem_to_be_edited = data['problem_to_be_edited']
-    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
     edit_metadata = data['edit_metadata']
 
-    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-
-    if(requesterUser and requesterUser.user_metadata.is_admin):
+    if(utils.check_is_admin(request.headers)):
         requested_problem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=problem_to_be_edited).first()
 
         try:
@@ -676,10 +794,8 @@ def edit_problem():
 def delete_problem():
     data = request.json
     requested_problem_id = data['requested_problem_id']
-    requester_user_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
 
-    requesterUser = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_user_id).first()
-    if(requesterUser and requesterUser.user_metadata.is_admin):
+    if(utils.check_is_admin(request.headers)):
         requestedProblem = db_session_ac.query(ProblemStatementMaster).filter_by(problem_statement_uuid=requested_problem_id).first()
         try:
             db_session_ac.delete(requestedProblem)
@@ -780,9 +896,8 @@ def delete_problem():
 def delete_test_cases():
     data = request.json
     test_case_id = data['test_case_id']
-    requester_id = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
-    user_obj = db_session_ac.query(UserMaster).filter_by(user_uuid=requester_id).first()
-    if(user_obj and user_obj.user_metadata.is_admin):
+
+    if(utils.check_is_admin(request.headers)):
         test_case_obj = db_session_ac.query(ProblemStatementTestCases).filter_by(test_case_id=test_case_id).first()
         try:
             db_session_ac.delete(test_case_obj)
