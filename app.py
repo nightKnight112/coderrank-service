@@ -23,6 +23,7 @@ environment = os.environ.get("env")
 db_username = os.environ.get("db_username")
 db_password = os.environ.get("db_password")
 vm_ip = os.environ.get("vm_ip")
+exec_service_url = os.environ.get("exec_service_url")
 
 #Db configuration
 DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}:5432/coderrank_db"
@@ -107,12 +108,12 @@ def execute(language_name, code, input, user_uuid):
         with open(f"/home/codes/{user_uuid}/Solution.java", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/Solution.java", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/Solution.java", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
     else:
         with open(f"/home/codes/{user_uuid}/solution.py", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{vm_ip}:5001/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
     
     return output
 
