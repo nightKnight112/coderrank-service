@@ -1,8 +1,8 @@
 services:
-  nginx:
+  coderrank-nginx:
     build: ./nginx
-    image: nginx
-    container_name: nginx
+    image: coderrank-nginx
+    container_name: coderrank-nginx
     ports:
       - "8080:80"
   coderrank-ui:
