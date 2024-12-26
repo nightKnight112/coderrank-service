@@ -99,7 +99,8 @@ def add_language_options():
 
 def execute(language_name, code, input, user_uuid):
 
-    output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "code": code, "input": input, "user_uuid": user_uuid}), headers={"Content-Type": "application/json"}).json()
+    print('entered execute')
+    output = requests.request("POST", url=f"{exec_service_url}/execute", data={"language_name": language_name, "code": code, "input": input, "user_uuid": user_uuid}, headers={"Content-Type": "application/json"}).json()
     
     return output
 
@@ -123,6 +124,7 @@ def run_code():
     logging.info(f"Executing code for {language_name} language at url {exec_service_url}/execute")
     print(f"Executing code for {language_name} language at url {exec_service_url}/execute")
     utils.ping_url(exec_service_url)
+
     output = execute(language_name, code, input, user_uuid)
 
     return jsonify(output)
