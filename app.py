@@ -110,7 +110,7 @@ def run_code():
     code = data["code"]
     input = data["input"]
     user_uuid = ""
-    if "refresh_token_cookie" in request.cookies:
+    if "refresh_token" in request.headers:
         user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
     elif "guest_id" in data:
         user_uuid = f"guest_{data['guest_id']}"
@@ -318,7 +318,7 @@ def user_login():
 def renew_token():
     try:
         identity = get_jwt_identity()
-        refresh_token = request.headers.get("refresh_token_cookie")
+        refresh_token = request.headers.get("refresh_token")
         if db_session_ac.query(BlacklistedTokens).filter_by(blacklisted_token=str(hash(refresh_token))).count() != 0:
             return jsonify({"message": "Token expired or invalid"}), 401
 
@@ -380,11 +380,11 @@ def logout():
         bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
         db_session_ac.add(bt)
         db_session_ac.commit()
-        response = make_response(jsonify({"message": "Logout successful"}))
-        if environment == "local": 
-            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
-        else:
-            response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+        response = jsonify({"message": "Logout successful"})
+        # if environment == "local": 
+        #     response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
+        # else:
+        #     response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
         
         blacklisted_tokens = db_session_ac.query(BlacklistedTokens).all()
         
@@ -497,17 +497,17 @@ def delete_user():
             try:
                 db_session_ac.delete(requestedUser)
                 db_session_ac.commit()
-                response = make_response(jsonify({'message': 'User deleted successfully', 'self_delete': 'true'}))
+                response = jsonify({'message': 'User deleted successfully', 'self_delete': 'true'}) #handled in frontend
                 
-                refresh_token = request.cookies["refresh_token_cookie"]
+                refresh_token = request.headers["refresh_token"]
                 bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
                 db_session_ac.add(bt)
                 db_session_ac.commit()
                 
-                if environment == "local": 
-                    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
-                else:
-                    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
+                # if environment == "local": 
+                #     response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=0))
+                # else:
+                #     response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=0))
                     
                 return response
             except Exception as e:
