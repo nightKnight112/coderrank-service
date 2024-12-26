@@ -114,7 +114,7 @@ def run_code():
     code = data["code"]
     input = data["input"]
     user_uuid = ""
-    if "refresh_token" in request.headers:
+    if "Authorization" in request.headers:
         user_uuid = utils.decode_token(request.headers["Authorization"].split()[1], jwt_secret_key)["user_uuid"]
     elif "guest_id" in data:
         user_uuid = f"guest_{data['guest_id']}"
