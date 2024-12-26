@@ -98,22 +98,8 @@ def add_language_options():
 
 
 def execute(language_name, code, input, user_uuid):
-    output = ""
 
-    os.makedirs(os.path.dirname(f"/home/codes/{user_uuid}/"), exist_ok=True)
-    with open(f"/home/codes/{user_uuid}/input.txt", "w") as f:
-        f.write(input)
-
-    if language_name == "Java":
-        with open(f"/home/codes/{user_uuid}/Solution.java", "w") as f:
-            f.write(code)
-        
-        output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/Solution.java", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
-    else:
-        with open(f"/home/codes/{user_uuid}/solution.py", "w") as f:
-            f.write(code)
-        
-        output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
+    output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "code": code, "input": input, "user_uuid": user_uuid}), headers={"Content-Type": "application/json"}).json()
     
     return output
 
@@ -319,10 +305,6 @@ def user_login():
             
             response = make_response(jsonify({'message': 'Logged in successfully', 'admin_user' : is_user_admin, "access_token": access_token, "refresh_token": refresh_token}))
 
-            if environment == "local": 
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None", max_age=timedelta(minutes=30))
-            else:
-                response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, max_age=timedelta(minutes=30))
             return response
         else:
             return jsonify({'message': 'Username or password is incorrect'}), 400
@@ -336,7 +318,7 @@ def user_login():
 def renew_token():
     try:
         identity = get_jwt_identity()
-        refresh_token = request.cookies["refresh_token_cookie"]
+        refresh_token = request.headers.get("refresh_token_cookie")
         if db_session_ac.query(BlacklistedTokens).filter_by(blacklisted_token=str(hash(refresh_token))).count() != 0:
             return jsonify({"message": "Token expired or invalid"}), 401
 
@@ -394,7 +376,7 @@ def user_registration():
 @jwt_required(refresh=True)
 def logout():
     try:
-        refresh_token = request.cookies["refresh_token_cookie"]
+        refresh_token = request.headers.get("refresh_token")
         bt = BlacklistedTokens(blacklisted_token=hash(refresh_token), blacklisted_timestamp=datetime.now())
         db_session_ac.add(bt)
         db_session_ac.commit()
