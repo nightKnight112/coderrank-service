@@ -275,13 +275,13 @@ def submit_code():
         flag = False
         result = execute(language_name, code, i.input, user_uuid)
 
-        if result["output"] == i.expected_output:
+        if result == i.expected_output:
             test_cases_passed += 1
             flag = True
 
         if not i.is_hidden:
             temp["input"] = i.input
-            temp["output"] = result["output"]
+            temp["output"] = result
             temp["expected_output"] = i.expected_output
             temp["passed"] = flag
             response["test_cases"].append(temp)
