@@ -114,7 +114,7 @@ def execute(language_name, code, input, user_uuid):
 def execute_code(data):
     logging.debug(f"{request.method} - {request.url} - {request.json}")
     try:
-        data = request.json
+        # data = request.json
         code = data["code"]
         language_name = data["language_name"]
         user_uuid = data["user_uuid"]
