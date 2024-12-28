@@ -107,9 +107,7 @@ def execute(language_name, code, input, user_uuid):
         "input": input
     }
     output = execute_code(data)
-
-    print(output)
-    
+    logging.error(output)
     return output
 
 # @app.post("/execute")
@@ -153,13 +151,13 @@ def execute_code(data):
             stderr = output.stderr.decode().strip()
 
         if len(stderr) > len(stdout):
-            return jsonify({"output": stderr})
+            return stderr
         else:
-            return jsonify({"output": stdout})
+            return stdout
         
     except Exception as e:
         logging.error(e)
-        return jsonify({"output": "something went wrong"}), 500
+        return "something went wrong"
 
 @app.route("/run-code", methods=["POST"])
 def run_code():
@@ -183,9 +181,9 @@ def run_code():
     utils.ping_url(exec_service_url)
 
     output = execute(language_name, code, input, user_uuid)
-    print(output.text)
+    # print(output.text)
     logging.error(output)
-    return jsonify(output.json())
+    return jsonify({"output": output}), 200
     # return response, 200
 
 # code execution through docker exec
