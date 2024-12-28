@@ -179,10 +179,8 @@ def run_code():
     output = execute(language_name, code, input, user_uuid)
     print(output.text)
     logging.error(output)
-    logging.debug(f"Output: {output}")
-    response = Response(output, content_type='text/plain')
-    # return jsonify(output)
-    return response, 200
+    return jsonify(output.json())
+    # return response, 200
 
 # code execution through docker exec
 @app.route('/execute_code_docker', methods=['POST'])
