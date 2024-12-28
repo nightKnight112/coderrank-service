@@ -184,7 +184,7 @@ def run_code():
 
 # code execution through docker exec
 @app.route('/execute_code_docker', methods=['POST'])
-def execute_code():
+def execute_code_docker():
     client = docker.from_env()
     data = request.json
     container_id = "239d386b5caa8fd0154b0830f31571c14acb024d240b23aa59a2ee980e272ff4"
