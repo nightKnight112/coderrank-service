@@ -100,14 +100,20 @@ def add_language_options():
 def execute(language_name, code, input, user_uuid):
 
     print('entered execute')
-    output = requests.request("POST", url=f"http://127.0.0.1:5000/execute", data={"language_name": language_name, "code": code, "input": input, "user_uuid": user_uuid}, headers={"Content-Type": "application/json"})
+    data = {
+        "code": code,
+        "language_name": language_name,
+        "user_uuid": user_uuid,
+        "input": input
+    }
+    output = execute_code(data)
 
     print(output)
     
     return output
 
-@app.post("/execute")
-def execute_code():
+# @app.post("/execute")
+def execute_code(data):
     logging.debug(f"{request.method} - {request.url} - {request.json}")
     try:
         data = request.json
