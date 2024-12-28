@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, make_response, Response
 from flask_cors import CORS
 import subprocess
 import docker
@@ -177,8 +177,12 @@ def run_code():
     utils.ping_url(exec_service_url)
 
     output = execute(language_name, code, input, user_uuid)
-
-    return jsonify(output)
+    print(output.text)
+    logging.error(output)
+    logging.debug(f"Output: {output}")
+    response = Response(output, content_type='text/plain')
+    # return jsonify(output)
+    return response, 200
 
 # code execution through docker exec
 @app.route('/execute_code_docker', methods=['POST'])
