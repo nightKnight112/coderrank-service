@@ -104,7 +104,7 @@ def execute(language_name, code, input, user_uuid):
 
     print(output)
     
-    return output.json()
+    return output
 
 # @app.post("/execute")
 # def execute():
