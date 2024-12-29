@@ -25,7 +25,7 @@ db_password = os.environ.get("db_password")
 vm_ip = os.environ.get("vm_ip")
 
 #Db configuration
-DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}:5432/coderrank_db"
+DATABASE_URL = f"postgresql://{db_username}:{db_password}@{vm_ip}:5432/railway"
 print(DATABASE_URL)
 db_engine = create_engine(DATABASE_URL)
 db_session = sessionmaker(bind=db_engine)
