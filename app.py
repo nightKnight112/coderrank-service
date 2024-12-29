@@ -115,7 +115,7 @@ def execute(language_name, code, input, user_uuid):
         with open(f"/home/codes/{user_uuid}/solution.py", "w") as f:
             f.write(code)
         
-        output = requests.request("POST", url=f"http://{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
+        output = requests.request("POST", url=f"{exec_service_url}/execute", data=json.dumps({"language_name": language_name, "filename": f"/home/codes/{user_uuid}/solution.py", "input_filename": f"/home/codes/{user_uuid}/input.txt"}), headers={"Content-Type": "application/json"}).json()
     
     return output
 
